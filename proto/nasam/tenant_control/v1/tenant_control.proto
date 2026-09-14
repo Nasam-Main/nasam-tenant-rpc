@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package nasam.tenant_control.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service TenantControl {
+  rpc CreateTenant(CreateTenantRequest) returns (ProvisioningStatus);
+  rpc GetProvisioningStatus(GetProvisioningStatusRequest) returns (ProvisioningStatus);
+}
+
+message CreateTenantRequest {
+  string tenant_id = 1;
+  string operation_id = 2;
+  string idempotency_key = 3;
+  TenantPayload payload = 4;
+}
+
+message TenantPayload {
+  string slug = 1;
+  string name_en = 2;
+  string name_ar = 3;
+  optional string email = 4;
+  optional string phone_number = 5;
+  repeated string module_ids = 6;
+}
+
+message GetProvisioningStatusRequest {
+  string tenant_id = 1;
+  string operation_id = 2;
+}
+
+enum OperationStatus {
+  OPERATION_STATUS_UNSPECIFIED = 0;
+  OPERATION_STATUS_QUEUED = 1;
+  OPERATION_STATUS_RUNNING = 2;
+  OPERATION_STATUS_SUCCEEDED = 3;
+  OPERATION_STATUS_FAILED = 4;
+}
+
+message ProvisioningStatus {
+  string protocol_version = 1;
+  string tenant_id = 2;
+  string operation_id = 3;
+  OperationStatus status = 4;
+  string stage = 5;
+  optional string failed_stage = 6;
+  optional string error_key = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}

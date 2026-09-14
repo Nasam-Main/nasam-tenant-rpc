@@ -14,11 +14,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npx buf lint
+      - name: Check code generation drift
+        run: |
+          npm run generate
+          git diff --exit-code src/gen
+      - name: Check protobuf backward compatibility
+        run: |
+          PREV_TAG=$(git tag -l 'v*' --sort=-v:refname | grep -v "^${GITHUB_REF_NAME}$" | head -n 1)
+          if [ -n "$PREV_TAG" ] && [ -n "$(git ls-tree "$PREV_TAG" proto)" ]; then
+            npx buf breaking --against ".git#tag=$PREV_TAG"
+          else
+            echo "Skipping buf breaking: previous release tag '$PREV_TAG' has no proto/ directory"
+          fi
       - run: npm test
       - run: npm pack --dry-run
 
