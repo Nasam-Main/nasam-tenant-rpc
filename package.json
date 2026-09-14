@@ -1,0 +1,45 @@
+{
+  "name": "@nasam/tenant-rpc",
+  "version": "0.1.0",
+  "description": "Versioned tenant-control RPC contract shared by NASAM services",
+  "license": "UNLICENSED",
+  "private": false,
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/*.test.cjs",
+    "prepack": "npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nasam-Main/nasam-tenant-rpc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Nasam-Main/nasam-tenant-rpc/issues"
+  },
+  "homepage": "https://github.com/Nasam-Main/nasam-tenant-rpc#readme",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
