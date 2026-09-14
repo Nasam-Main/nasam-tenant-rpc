@@ -1,6 +1,6 @@
 {
   "name": "@nasam/tenant-rpc",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Versioned tenant-control RPC contract shared by NASAM services",
   "license": "UNLICENSED",
   "private": false,
@@ -20,6 +20,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test test/*.test.cjs",
+    "prepare": "npm run build",
     "prepack": "npm test"
   },
   "repository": {
