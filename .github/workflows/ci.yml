@@ -37,3 +37,6 @@ jobs:
           gh api --method POST repos/Nasam-Main/nasam-v2-api/dispatches \
             -f event_type=tenant-rpc-released \
             -F client_payload[tag]="$GITHUB_REF_NAME"
+          gh api --method POST repos/Nasam-Main/nasam-portal-backend/dispatches \
+            -f event_type=tenant-rpc-released \
+            -F client_payload[tag]="$GITHUB_REF_NAME"
