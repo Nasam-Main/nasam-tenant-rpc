@@ -19,3 +19,9 @@ Update the version, run `npm test`, then create and push the matching
 
 This repository is public for dependency distribution. It must never contain
 credentials, infrastructure details, customer data, or server implementation.
+
+After tag CI succeeds, the workflow sends a `tenant-rpc-released` repository
+dispatch to each configured consumer. `CONSUMER_REPOS_TOKEN` must be a
+fine-grained GitHub token with access limited to the consumer repositories and
+permission to trigger repository dispatch events. Scheduled consumer checks
+remain as a fallback.

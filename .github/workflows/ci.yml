@@ -21,3 +21,19 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm pack --dry-run
+
+  notify-consumers:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Dispatch validated release
+        env:
+          GH_TOKEN: ${{ secrets.CONSUMER_REPOS_TOKEN }}
+        run: |
+          test -n "$GH_TOKEN"
+          gh api --method POST repos/Nasam-Main/nasam-v2-api/dispatches \
+            -f event_type=tenant-rpc-released \
+            -F client_payload[tag]="$GITHUB_REF_NAME"
