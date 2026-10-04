@@ -1,0 +1,69 @@
+name: Build and Deploy Staging
+
+on:
+  push:
+    branches: [staging]
+
+env:
+  IMAGE: ghcr.io/nasam-main/nasam-tenant-rpc
+
+jobs:
+  build:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:staging
+            ${{ env.IMAGE }}:${{ github.sha }}
+
+  deploy:
+    name: Deploy to Staging Server
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: SSH and deploy
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u andrewbassily0 --password-stdin
+            mkdir -p ~/nasam-tenant-rpc
+            cat > ~/nasam-tenant-rpc/docker-compose-staging.yml <<'EOF'
+            services:
+              nasam-tenant-rpc:
+                image: ghcr.io/nasam-main/nasam-tenant-rpc:staging
+                container_name: nasam-tenant-rpc-staging
+                restart: unless-stopped
+                networks:
+                  - nasam-staging-network
+
+            networks:
+              nasam-staging-network:
+                external: true
+                name: nasam-v2-api_nasam-staging-network
+            EOF
+            docker compose -p nasam-tenant-rpc-staging -f ~/nasam-tenant-rpc/docker-compose-staging.yml pull
+            docker compose -p nasam-tenant-rpc-staging -f ~/nasam-tenant-rpc/docker-compose-staging.yml up -d --remove-orphans

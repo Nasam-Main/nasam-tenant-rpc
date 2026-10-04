@@ -1,0 +1,12 @@
+services:
+  nasam-tenant-rpc:
+    image: ghcr.io/nasam-main/nasam-tenant-rpc:staging
+    container_name: nasam-tenant-rpc-staging
+    restart: unless-stopped
+    networks:
+      - nasam-staging-network
+
+networks:
+  nasam-staging-network:
+    external: true
+    name: nasam-v2-api_nasam-staging-network
