@@ -50,7 +50,6 @@ jobs:
           port: ${{ secrets.SERVER_PORT }}
           script: |
             echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u andrewbassily0 --password-stdin
-            docker network create nasam-v2-api_nasam-staging-network 2>/dev/null || true
             mkdir -p ~/nasam-tenant-rpc
             cat > ~/nasam-tenant-rpc/docker-compose-staging.yml <<'EOF'
             services:
@@ -59,12 +58,12 @@ jobs:
                 container_name: nasam-tenant-rpc-staging
                 restart: unless-stopped
                 networks:
-                  - nasam-staging-network
+                  - nasam-stage-network
 
             networks:
-              nasam-staging-network:
+              nasam-stage-network:
                 external: true
-                name: nasam-v2-api_nasam-staging-network
+                name: nasam-v2-api-stage_nasam-stage-network
             EOF
             docker compose -p nasam-tenant-rpc-staging -f ~/nasam-tenant-rpc/docker-compose-staging.yml pull
             docker compose -p nasam-tenant-rpc-staging -f ~/nasam-tenant-rpc/docker-compose-staging.yml up -d --remove-orphans
