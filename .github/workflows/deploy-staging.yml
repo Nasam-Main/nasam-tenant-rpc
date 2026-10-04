@@ -50,6 +50,7 @@ jobs:
           port: ${{ secrets.SERVER_PORT }}
           script: |
             echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u andrewbassily0 --password-stdin
+            docker network create nasam-v2-api_nasam-staging-network 2>/dev/null || true
             mkdir -p ~/nasam-tenant-rpc
             cat > ~/nasam-tenant-rpc/docker-compose-staging.yml <<'EOF'
             services:
