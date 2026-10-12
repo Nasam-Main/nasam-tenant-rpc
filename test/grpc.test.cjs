@@ -251,6 +251,15 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
       receivedAdminRequests.push(["restore", call.request]);
       callback(null, { ...adminRecord, status: "ACTIVE" });
     },
+    updateModulePrice: (call, callback) => {
+      receivedAdminRequests.push(["updateModulePrice", call.request]);
+      callback(null, {
+        id: call.request.moduleId, slug: "FLEET", nameEn: "Fleet", nameAr: "الأسطول",
+        descriptionEn: "", descriptionAr: "",
+        purchasingPrice: call.request.sellingPrice, sellingPrice: call.request.sellingPrice,
+        createdAt: new Date("2026-09-01T00:00:00.000Z"), updatedAt: new Date("2026-09-06T00:00:00.000Z"),
+      });
+    },
     getTenant: (call, callback) => {
       serverAuthTokenGet = String(call.metadata.get("authorization")[0] ?? "");
       if (call.request.tenantId !== tenantId) {
@@ -420,6 +429,21 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
   const restoredAdmin = await client.restoreAccountAdmin({ tenantId, adminId }, "token-admins");
   assert.equal(restoredAdmin.status, "ACTIVE");
   assert.equal(restoredAdmin.archivedAt, undefined);
+
+  const moduleRecord = await client.updateModulePrice(
+    { moduleId: "66666666-6666-4666-8666-666666666666", sellingPrice: 1750.5 },
+    "token-modules",
+  );
+  assert.equal(moduleRecord.sellingPrice, 1750.5);
+  assert.equal(moduleRecord.updatedAt, "2026-09-06T00:00:00.000Z");
+  await assert.rejects(
+    () => client.updateModulePrice({ moduleId: "66666666-6666-4666-8666-666666666666", sellingPrice: 1.234 }, "t"),
+    (err) => err.details.messageKey === "INVALID_TENANT_RPC_INPUT",
+  );
+  await assert.rejects(
+    () => client.updateModulePrice({ moduleId: "66666666-6666-4666-8666-666666666666", sellingPrice: -1 }, "t"),
+    (err) => err.details.messageKey === "INVALID_TENANT_RPC_INPUT",
+  );
 
   const statusInput = { tenantId, operationId };
   const statusRes = await client.status(statusInput, "token-xyz-456");

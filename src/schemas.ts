@@ -94,19 +94,26 @@ export const tenantListResultSchema = z.object({
   }),
 });
 
+export const moduleRecordSchema = z.object({
+  id: uuid,
+  slug: z.string(),
+  nameEn: z.string(),
+  nameAr: z.string(),
+  descriptionEn: z.string(),
+  descriptionAr: z.string(),
+  purchasingPrice: z.number(),
+  sellingPrice: z.number(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
 export const moduleListResultSchema = z.object({
-  data: z.array(z.object({
-    id: uuid,
-    slug: z.string(),
-    nameEn: z.string(),
-    nameAr: z.string(),
-    descriptionEn: z.string(),
-    descriptionAr: z.string(),
-    purchasingPrice: z.number(),
-    sellingPrice: z.number(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
-  })),
+  data: z.array(moduleRecordSchema),
+});
+export const moduleUpdatePriceInputSchema = z.object({
+  moduleId: uuid,
+  // Decimal(12, 2) in the catalog: non-negative, at most two decimals.
+  sellingPrice: z.number().nonnegative().max(9_999_999_999.99)
+    .refine((value) => Math.round(value * 100) === Number((value * 100).toFixed(6))),
 });
 
 export const subscriptionListInputSchema = z.object({
@@ -223,6 +230,8 @@ export type TenantGetInput = z.infer<typeof tenantGetInputSchema>;
 export type TenantListInput = z.infer<typeof tenantListInputSchema>;
 export type TenantListResult = z.infer<typeof tenantListResultSchema>;
 export type ModuleListResult = z.infer<typeof moduleListResultSchema>;
+export type ModuleRecordResult = z.infer<typeof moduleRecordSchema>;
+export type ModuleUpdatePriceInput = z.infer<typeof moduleUpdatePriceInputSchema>;
 export type SubscriptionListInput = z.infer<typeof subscriptionListInputSchema>;
 export type SubscriptionListResult = z.infer<typeof subscriptionListResultSchema>;
 export type SubscriptionRecordResult = z.infer<typeof subscriptionRecordSchema>;

@@ -14,6 +14,8 @@ service TenantControl {
   rpc RestoreTenant(GetTenantRequest) returns (TenantRecord);
   rpc ListTenants(ListTenantsRequest) returns (ListTenantsResponse);
   rpc ListModules(ListModulesRequest) returns (ListModulesResponse);
+  // Reprices a module in the catalog. Lines already sold keep their price.
+  rpc UpdateModulePrice(UpdateModulePriceRequest) returns (ModuleRecord);
   rpc ListSubscriptions(ListSubscriptionsRequest) returns (ListSubscriptionsResponse);
   rpc CreateSubscription(CreateSubscriptionRequest) returns (SubscriptionRecord);
   rpc ListAccountAdmins(ListAccountAdminsRequest) returns (ListAccountAdminsResponse);
@@ -105,6 +107,11 @@ message ModuleRecord {
   double selling_price = 8;
   google.protobuf.Timestamp created_at = 9;
   google.protobuf.Timestamp updated_at = 10;
+}
+
+message UpdateModulePriceRequest {
+  string module_id = 1;
+  double selling_price = 2;
 }
 
 message ListModulesResponse {

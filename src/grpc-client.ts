@@ -17,7 +17,11 @@ import {
   type TenantListInput,
   type TenantListResult,
   moduleListResultSchema,
+  moduleRecordSchema,
+  moduleUpdatePriceInputSchema,
   type ModuleListResult,
+  type ModuleRecordResult,
+  type ModuleUpdatePriceInput,
   subscriptionListInputSchema,
   accountAdminListInputSchema,
   accountAdminGetInputSchema,
@@ -52,6 +56,8 @@ import {
   type ListTenantsResponse,
   type ListModulesRequest,
   type ListModulesResponse,
+  type ModuleRecord,
+  type UpdateModulePriceRequest,
   type ListSubscriptionsRequest,
   type ListSubscriptionsResponse,
   type SubscriptionRecord,
@@ -339,6 +345,15 @@ export function createTenantControlGrpcClient(
     client.close();
   };
 
+  function toDomainModule(module: ModuleRecord): ModuleRecordResult {
+    return moduleRecordSchema.parse({
+      id: module.id, slug: module.slug, nameEn: module.nameEn, nameAr: module.nameAr,
+      descriptionEn: module.descriptionEn, descriptionAr: module.descriptionAr,
+      purchasingPrice: module.purchasingPrice, sellingPrice: module.sellingPrice,
+      createdAt: module.createdAt?.toISOString(), updatedAt: module.updatedAt?.toISOString(),
+    });
+  }
+
   const listModules = async (token: string): Promise<ModuleListResult> => {
     const metadata = new Metadata();
     metadata.set("authorization", `Bearer ${token}`);
@@ -347,12 +362,7 @@ export function createTenantControlGrpcClient(
       client.listModules({} as ListModulesRequest, metadata, { deadline }, (err, response: ListModulesResponse) => {
         if (err) return reject(fromGrpcError(err));
         try {
-          resolve(moduleListResultSchema.parse({ data: response.modules.map((module) => ({
-            id: module.id, slug: module.slug, nameEn: module.nameEn, nameAr: module.nameAr,
-            descriptionEn: module.descriptionEn, descriptionAr: module.descriptionAr,
-            purchasingPrice: module.purchasingPrice, sellingPrice: module.sellingPrice,
-            createdAt: module.createdAt?.toISOString(), updatedAt: module.updatedAt?.toISOString(),
-          })) }));
+          resolve(moduleListResultSchema.parse({ data: response.modules.map(toDomainModule) }));
         } catch (error) { reject(error); }
       });
     });
@@ -519,6 +529,19 @@ export function createTenantControlGrpcClient(
     );
   };
 
+  const updateModulePrice = async (
+    input: ModuleUpdatePriceInput,
+    token: string,
+  ): Promise<ModuleRecordResult> => {
+    const validated = parseInput<ModuleUpdatePriceInput>(moduleUpdatePriceInputSchema, input);
+    return unary(
+      client.updateModulePrice as unknown as UnaryMethod<UpdateModulePriceRequest, ModuleRecord>,
+      validated,
+      token,
+      toDomainModule,
+    );
+  };
+
   const createSubscription = async (
     input: SubscriptionCreateInput,
     token: string,
@@ -563,6 +586,7 @@ export function createTenantControlGrpcClient(
     status,
     list,
     listModules,
+    updateModulePrice,
     listSubscriptions,
     createSubscription,
     listAccountAdmins,
