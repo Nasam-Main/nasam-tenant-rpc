@@ -35,6 +35,11 @@ export const TENANT_RPC_ERROR_MAPPINGS: Record<string, TenantRpcMappingEntry> = 
     grpcName: "ALREADY_EXISTS",
     httpStatus: 409,
   },
+  TENANT_NOT_FOUND: {
+    grpcCode: status.NOT_FOUND,
+    grpcName: "NOT_FOUND",
+    httpStatus: 404,
+  },
   MODULE_NOT_FOUND: {
     grpcCode: status.NOT_FOUND,
     grpcName: "NOT_FOUND",
@@ -49,6 +54,46 @@ export const TENANT_RPC_ERROR_MAPPINGS: Record<string, TenantRpcMappingEntry> = 
     grpcCode: status.NOT_FOUND,
     grpcName: "NOT_FOUND",
     httpStatus: 404,
+  },
+  ACCOUNT_ADMIN_NOT_FOUND: {
+    grpcCode: status.NOT_FOUND,
+    grpcName: "NOT_FOUND",
+    httpStatus: 404,
+  },
+  TENANT_ALREADY_HAS_ADMIN: {
+    grpcCode: status.ALREADY_EXISTS,
+    grpcName: "ALREADY_EXISTS",
+    httpStatus: 409,
+  },
+  ACCOUNT_ADMIN_USERNAME_TAKEN: {
+    grpcCode: status.ALREADY_EXISTS,
+    grpcName: "ALREADY_EXISTS",
+    httpStatus: 409,
+  },
+  ACCOUNT_ADMIN_EMAIL_TAKEN: {
+    grpcCode: status.ALREADY_EXISTS,
+    grpcName: "ALREADY_EXISTS",
+    httpStatus: 409,
+  },
+  TENANT_NOT_ACTIVE: {
+    grpcCode: status.FAILED_PRECONDITION,
+    grpcName: "FAILED_PRECONDITION",
+    httpStatus: 409,
+  },
+  ACCOUNT_ADMIN_STATUS_CHANGE_NOT_ALLOWED: {
+    grpcCode: status.FAILED_PRECONDITION,
+    grpcName: "FAILED_PRECONDITION",
+    httpStatus: 409,
+  },
+  MODULE_NOT_SELLABLE: {
+    grpcCode: status.INVALID_ARGUMENT,
+    grpcName: "INVALID_ARGUMENT",
+    httpStatus: 400,
+  },
+  MODULE_ALREADY_SUBSCRIBED: {
+    grpcCode: status.ALREADY_EXISTS,
+    grpcName: "ALREADY_EXISTS",
+    httpStatus: 409,
   },
   INVALID_DELEGATION_TOKEN: {
     grpcCode: status.UNAUTHENTICATED,
@@ -73,6 +118,7 @@ const GRPC_CODE_TO_HTTP_STATUS: Record<number, number> = {
   [status.UNAUTHENTICATED]: 401,
   [status.PERMISSION_DENIED]: 403,
   [status.INVALID_ARGUMENT]: 400,
+  [status.FAILED_PRECONDITION]: 409,
   [status.INTERNAL]: 500,
 };
 

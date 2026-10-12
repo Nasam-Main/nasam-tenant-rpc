@@ -27,6 +27,7 @@ test("proto encode/decode round-trip of CreateTenantRequest and ProvisioningStat
       slug: "acme-corp",
       nameEn: "Acme Corp",
       nameAr: "شركة أكمي",
+      branding: { logoUrl: "https://example.com/logo.png", primaryColor: "#112233" },
       email: "admin@acme.com",
       phoneNumber: "+1234567890",
       moduleIds: ["33333333-3333-4333-8333-333333333333"],
@@ -46,6 +47,7 @@ test("proto encode/decode round-trip of CreateTenantRequest and ProvisioningStat
   assert.equal(decodedReq.payload.email, origReq.payload.email);
   assert.equal(decodedReq.payload.phoneNumber, origReq.payload.phoneNumber);
   assert.deepEqual(decodedReq.payload.moduleIds, origReq.payload.moduleIds);
+  assert.deepEqual(decodedReq.payload.branding, origReq.payload.branding);
 
   // ProvisioningStatus
   const now = new Date("2026-09-14T12:30:00.000Z");
@@ -133,7 +135,27 @@ test("mapping table in both directions", () => {
 test("createTenantControlGrpcClient against real in-test grpc Server", async (t) => {
   let serverAuthTokenCreate = "";
   let serverAuthTokenStatus = "";
+  let serverAuthTokenUpdate = "";
+  let serverAuthTokenGet = "";
+  const receivedAdminRequests = [];
+  const receivedSubscriptionRequests = [];
+  const adminId = "33333333-3333-4333-8333-333333333333";
+  const adminRecord = {
+    id: adminId,
+    tenantId,
+    tenantNameEn: "Saudi Tracking",
+    tenantNameAr: "التتبع السعودي",
+    username: "st_admin",
+    email: "admin@saudi-tracking.sa",
+    phoneNumber: "+966500000000",
+    nameEn: "Saudi Tracking Admin",
+    nameAr: "مسؤول التتبع السعودي",
+    status: "PENDING_ACTIVATION",
+    createdAt: new Date("2026-09-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-09-02T00:00:00.000Z"),
+  };
   let serverCallCount = 0;
+  let receivedBranding;
   let mode = "normal";
 
   const server = new grpc.Server();
@@ -141,6 +163,7 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
     createTenant: (call, callback) => {
       serverCallCount++;
       const authHeader = call.metadata.get("authorization");
+      receivedBranding = call.request.payload.branding;
       serverAuthTokenCreate = authHeader.length > 0 ? String(authHeader[0]) : "";
 
       if (mode === "error-already-exists") {
@@ -159,6 +182,72 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
         status: OperationStatus.OPERATION_STATUS_QUEUED,
         stage: "QUEUED",
         updatedAt: new Date("2026-09-14T15:00:00.000Z"),
+      });
+    },
+    updateTenant: (call, callback) => {
+      serverAuthTokenUpdate = String(call.metadata.get("authorization")[0] ?? "");
+      callback(null, {
+        id: call.request.tenantId,
+        slug: "test-co",
+        nameEn: call.request.nameEn,
+        nameAr: call.request.nameAr,
+        email: call.request.email,
+        phoneNumber: call.request.phoneNumber,
+        status: "ACTIVE",
+        createdAt: new Date("2026-09-14T15:00:00.000Z"),
+        updatedAt: new Date("2026-09-17T10:00:00.000Z"),
+        logoUrl: call.request.branding?.logoUrl,
+        primaryColor: call.request.branding?.primaryColor,
+      });
+    },
+    listAccountAdmins: (call, callback) => {
+      receivedAdminRequests.push(["list", call.request]);
+      callback(null, { admins: [adminRecord], page: 1, limit: 20, total: 1, totalPages: 1 });
+    },
+    getAccountAdmin: (call, callback) => {
+      receivedAdminRequests.push(["get", call.request]);
+      callback(null, adminRecord);
+    },
+    createAccountAdmin: (call, callback) => {
+      receivedAdminRequests.push(["create", call.request]);
+      callback(toTenantRpcServiceError("TENANT_ALREADY_HAS_ADMIN"), null);
+    },
+    createSubscription: (call, callback) => {
+      receivedSubscriptionRequests.push(call.request);
+      const [line] = call.request.modules;
+      callback(null, {
+        id: "44444444-4444-4444-8444-444444444444",
+        organizationId: call.request.tenantId,
+        organizationNameEn: "Saudi Tracking",
+        organizationNameAr: "التتبع السعودي",
+        modules: [{
+          id: "55555555-5555-4555-8555-555555555555", moduleId: line.moduleId,
+          nameEn: "Fleet", nameAr: "الأسطول", descriptionEn: "", descriptionAr: "",
+          price: line.price, startDate: line.startDate, endDate: line.endDate, status: "ACTIVE",
+        }],
+        totalPrice: line.price, currency: "SAR", status: "ACTIVE",
+        createdAt: new Date("2026-09-01T00:00:00.000Z"),
+      });
+    },
+    updateAccountAdmin: (call, callback) => {
+      receivedAdminRequests.push(["update", call.request]);
+      callback(null, { ...adminRecord, status: call.request.status ?? adminRecord.status });
+    },
+    getTenant: (call, callback) => {
+      serverAuthTokenGet = String(call.metadata.get("authorization")[0] ?? "");
+      if (call.request.tenantId !== tenantId) {
+        callback(toTenantRpcServiceError("TENANT_NOT_FOUND"), null);
+        return;
+      }
+      callback(null, {
+        id: call.request.tenantId,
+        slug: "saudi-tracking",
+        nameEn: "Saudi Tracking",
+        nameAr: "التتبع السعودي",
+        status: "ACTIVE",
+        createdAt: new Date("2026-09-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-09-02T00:00:00.000Z"),
+        logoUrl: "https://files.example.com/logo.png",
       });
     },
     getProvisioningStatus: (call, callback) => {
@@ -205,6 +294,7 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
     operationId,
     idempotencyKey: "key-1",
     payload: {
+      branding: { primaryColor: "#aabbcc" },
       slug: "test-co",
       nameEn: "Test Co",
       nameAr: "شركة اختبار",
@@ -214,6 +304,7 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
 
   const createRes = await client.create(createInput, "token-abc-123");
   assert.equal(serverAuthTokenCreate, "Bearer token-abc-123");
+  assert.deepEqual(receivedBranding, { logoUrl: undefined, primaryColor: "#AABBCC" });
   assert.equal(createRes.status, "QUEUED");
   assert.equal(createRes.updatedAt, "2026-09-14T15:00:00.000Z");
   assert.equal(createRes.stage, "QUEUED");
@@ -222,6 +313,79 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
   assert.equal(createRes.operationId, operationId);
   assert.equal("failedStage" in createRes, false);
   assert.equal("errorKey" in createRes, false);
+
+  const updated = await client.update({
+    tenantId,
+    nameEn: "Updated Co",
+    nameAr: "شركة محدثة",
+    branding: { primaryColor: "#abcdef" },
+  }, "token-update");
+  assert.equal(serverAuthTokenUpdate, "Bearer token-update");
+  assert.equal(updated.nameEn, "Updated Co");
+  assert.deepEqual(updated.branding, { primaryColor: "#ABCDEF" });
+
+  const fetched = await client.get({ tenantId }, "token-get");
+  assert.equal(serverAuthTokenGet, "Bearer token-get");
+  assert.equal(fetched.slug, "saudi-tracking");
+  assert.equal(fetched.createdAt, "2026-09-01T00:00:00.000Z");
+  assert.deepEqual(fetched.branding, { logoUrl: "https://files.example.com/logo.png" });
+  await assert.rejects(
+    () => client.get({ tenantId: "99999999-9999-4999-8999-999999999999" }, "token-get"),
+    (err) => {
+      assert.ok(err instanceof TenantRpcClientError);
+      assert.equal(err.details.status, 404);
+      assert.equal(err.details.messageKey, "TENANT_NOT_FOUND");
+      return true;
+    },
+  );
+  await assert.rejects(() => client.get({ tenantId: "not-a-uuid" }, "token-get"), (err) => {
+    assert.equal(err.details.messageKey, "INVALID_TENANT_RPC_INPUT");
+    return true;
+  });
+
+  const admins = await client.listAccountAdmins({ search: " admin " }, "token-admins");
+  assert.equal(admins.meta.total, 1);
+  assert.equal(admins.data[0].createdAt, "2026-09-01T00:00:00.000Z");
+  assert.equal(receivedAdminRequests[0][1].search, "admin");
+  const admin = await client.getAccountAdmin({ tenantId, adminId }, "token-admins");
+  assert.equal(admin.tenantNameEn, "Saudi Tracking");
+  await assert.rejects(
+    () => client.createAccountAdmin({
+      tenantId, username: "st_admin2", email: " New@Example.com ",
+      phoneNumber: "+966500000001", nameEn: "New", nameAr: "جديد",
+    }, "token-admins"),
+    (err) => {
+      assert.equal(err.details.status, 409);
+      assert.equal(err.details.messageKey, "TENANT_ALREADY_HAS_ADMIN");
+      return true;
+    },
+  );
+  assert.equal(receivedAdminRequests[2][1].email, "new@example.com");
+  const updatedAdmin = await client.updateAccountAdmin({
+    tenantId, adminId, nameEn: "A", nameAr: "ب", email: "a@example.com",
+    phoneNumber: "+966500000000", status: "INACTIVE",
+  }, "token-admins");
+  assert.equal(updatedAdmin.status, "INACTIVE");
+  await assert.rejects(
+    () => client.createAccountAdmin({ tenantId, username: "x", email: "bad", phoneNumber: "1", nameEn: "", nameAr: "" }, "t"),
+    (err) => err.details.messageKey === "INVALID_TENANT_RPC_INPUT",
+  );
+
+  const moduleId = "66666666-6666-4666-8666-666666666666";
+  const subscription = await client.createSubscription({
+    tenantId,
+    modules: [{ moduleId, price: "1500.00", startDate: "2026-09-30T21:00:00.000Z", endDate: "2027-09-30T21:00:00.000Z" }],
+  }, "token-subscriptions");
+  assert.ok(receivedSubscriptionRequests[0].modules[0].startDate instanceof Date);
+  assert.equal(subscription.organizationId, tenantId);
+  assert.equal(subscription.modules[0].price, "1500.00");
+  assert.equal(subscription.modules[0].startDate, "2026-09-30T21:00:00.000Z");
+  assert.equal(subscription.createdAt, "2026-09-01T00:00:00.000Z");
+  await assert.rejects(
+    () => client.createSubscription({ tenantId, modules: [{ moduleId, price: "1500.00", startDate: "2026-09-30T21:00:00.000Z" }] }, "t"),
+    (err) => err.details.messageKey === "INVALID_TENANT_RPC_INPUT",
+  );
+  assert.equal(receivedSubscriptionRequests.length, 1);
 
   const statusInput = { tenantId, operationId };
   const statusRes = await client.status(statusInput, "token-xyz-456");

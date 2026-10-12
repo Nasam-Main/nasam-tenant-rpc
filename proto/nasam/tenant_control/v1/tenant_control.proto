@@ -6,7 +6,26 @@ import "google/protobuf/timestamp.proto";
 
 service TenantControl {
   rpc CreateTenant(CreateTenantRequest) returns (ProvisioningStatus);
+  rpc UpdateTenant(UpdateTenantRequest) returns (TenantRecord);
   rpc GetProvisioningStatus(GetProvisioningStatusRequest) returns (ProvisioningStatus);
+  rpc GetTenant(GetTenantRequest) returns (TenantRecord);
+  rpc ListTenants(ListTenantsRequest) returns (ListTenantsResponse);
+  rpc ListModules(ListModulesRequest) returns (ListModulesResponse);
+  rpc ListSubscriptions(ListSubscriptionsRequest) returns (ListSubscriptionsResponse);
+  rpc CreateSubscription(CreateSubscriptionRequest) returns (SubscriptionRecord);
+  rpc ListAccountAdmins(ListAccountAdminsRequest) returns (ListAccountAdminsResponse);
+  rpc GetAccountAdmin(GetAccountAdminRequest) returns (AccountAdminRecord);
+  rpc CreateAccountAdmin(CreateAccountAdminRequest) returns (AccountAdminRecord);
+  rpc UpdateAccountAdmin(UpdateAccountAdminRequest) returns (AccountAdminRecord);
+}
+
+message UpdateTenantRequest {
+  string tenant_id = 1;
+  string name_en = 2;
+  string name_ar = 3;
+  optional string email = 4;
+  optional string phone_number = 5;
+  TenantBranding branding = 6;
 }
 
 message CreateTenantRequest {
@@ -23,11 +42,179 @@ message TenantPayload {
   optional string email = 4;
   optional string phone_number = 5;
   repeated string module_ids = 6;
+  TenantBranding branding = 7;
+}
+
+message TenantBranding {
+  optional string logo_url = 1;
+  optional string primary_color = 2;
 }
 
 message GetProvisioningStatusRequest {
   string tenant_id = 1;
   string operation_id = 2;
+}
+
+message GetTenantRequest {
+  string tenant_id = 1;
+}
+
+message ListTenantsRequest {
+  uint32 page = 1;
+  uint32 limit = 2;
+}
+
+message TenantRecord {
+  string id = 1;
+  string slug = 2;
+  string name_en = 3;
+  string name_ar = 4;
+  optional string email = 5;
+  optional string phone_number = 6;
+  string status = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  optional string logo_url = 10;
+  optional string primary_color = 11;
+}
+
+message ListTenantsResponse {
+  repeated TenantRecord tenants = 1;
+  uint32 page = 2;
+  uint32 limit = 3;
+  uint32 total = 4;
+  uint32 total_pages = 5;
+}
+
+message ListModulesRequest {}
+
+message ModuleRecord {
+  string id = 1;
+  string slug = 2;
+  string name_en = 3;
+  string name_ar = 4;
+  string description_en = 5;
+  string description_ar = 6;
+  double purchasing_price = 7;
+  double selling_price = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+message ListModulesResponse {
+  repeated ModuleRecord modules = 1;
+}
+
+message ListSubscriptionsRequest {
+  uint32 page = 1;
+  uint32 limit = 2;
+  optional string status = 3;
+  optional string search = 4;
+}
+
+message SubscriptionModuleRecord {
+  string id = 1;
+  string module_id = 2;
+  string name_en = 3;
+  string name_ar = 4;
+  string price = 5;
+  optional google.protobuf.Timestamp start_date = 6;
+  optional google.protobuf.Timestamp end_date = 7;
+  string status = 8;
+  string description_en = 9;
+  string description_ar = 10;
+}
+
+message SubscriptionRecord {
+  string id = 1;
+  string organization_id = 2;
+  string organization_name_en = 3;
+  string organization_name_ar = 4;
+  repeated SubscriptionModuleRecord modules = 5;
+  string total_price = 6;
+  string currency = 7;
+  string status = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+// Sells modules to a tenant: appends lines to its subscription.
+message CreateSubscriptionModuleLine {
+  string module_id = 1;
+  // Decimal string, e.g. "1500.00".
+  string price = 2;
+  // Both set, or both omitted for no term.
+  optional google.protobuf.Timestamp start_date = 3;
+  optional google.protobuf.Timestamp end_date = 4;
+}
+
+message CreateSubscriptionRequest {
+  string tenant_id = 1;
+  repeated CreateSubscriptionModuleLine modules = 2;
+}
+
+message ListSubscriptionsResponse {
+  repeated SubscriptionRecord subscriptions = 1;
+  uint32 current_page = 2;
+  uint32 total_pages = 3;
+  uint32 total_count = 4;
+}
+
+// A tenant's own administrator: the ADMIN user inside that tenant's schema.
+message AccountAdminRecord {
+  string id = 1;
+  string tenant_id = 2;
+  string tenant_name_en = 3;
+  string tenant_name_ar = 4;
+  string username = 5;
+  string email = 6;
+  optional string phone_number = 7;
+  string name_en = 8;
+  string name_ar = 9;
+  // ACTIVE, INACTIVE or PENDING_ACTIVATION.
+  string status = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+message ListAccountAdminsRequest {
+  uint32 page = 1;
+  uint32 limit = 2;
+  optional string search = 3;
+  optional string status = 4;
+  optional string tenant_id = 5;
+}
+
+message ListAccountAdminsResponse {
+  repeated AccountAdminRecord admins = 1;
+  uint32 page = 2;
+  uint32 limit = 3;
+  uint32 total = 4;
+  uint32 total_pages = 5;
+}
+
+message GetAccountAdminRequest {
+  string tenant_id = 1;
+  string admin_id = 2;
+}
+
+message CreateAccountAdminRequest {
+  string tenant_id = 1;
+  string username = 2;
+  string email = 3;
+  string phone_number = 4;
+  string name_en = 5;
+  string name_ar = 6;
+}
+
+message UpdateAccountAdminRequest {
+  string tenant_id = 1;
+  string admin_id = 2;
+  string name_en = 3;
+  string name_ar = 4;
+  string email = 5;
+  string phone_number = 6;
+  // ACTIVE or INACTIVE; omitted keeps the current status.
+  optional string status = 7;
 }
 
 enum OperationStatus {
