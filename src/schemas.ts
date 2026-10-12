@@ -149,6 +149,7 @@ export const accountAdminListInputSchema = z.object({
   search: z.string().trim().max(150).optional(),
   status: accountAdminStatus.optional(),
   tenantId: uuid.optional(),
+  archived: z.boolean().optional(),
 });
 export const accountAdminGetInputSchema = z.object({
   tenantId: uuid,
@@ -184,6 +185,7 @@ export const accountAdminRecordSchema = z.object({
   status: accountAdminStatus,
   createdAt: z.string(),
   updatedAt: z.string(),
+  archivedAt: z.string().optional(),
 });
 export const accountAdminListResultSchema = z.object({
   data: z.array(accountAdminRecordSchema),

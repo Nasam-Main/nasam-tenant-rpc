@@ -80,6 +80,11 @@ export const TENANT_RPC_ERROR_MAPPINGS: Record<string, TenantRpcMappingEntry> = 
     grpcName: "FAILED_PRECONDITION",
     httpStatus: 409,
   },
+  TENANT_NOT_ARCHIVED: {
+    grpcCode: status.FAILED_PRECONDITION,
+    grpcName: "FAILED_PRECONDITION",
+    httpStatus: 409,
+  },
   ACCOUNT_ADMIN_STATUS_CHANGE_NOT_ALLOWED: {
     grpcCode: status.FAILED_PRECONDITION,
     grpcName: "FAILED_PRECONDITION",

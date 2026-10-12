@@ -233,6 +233,24 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
       receivedAdminRequests.push(["update", call.request]);
       callback(null, { ...adminRecord, status: call.request.status ?? adminRecord.status });
     },
+    archiveTenant: (call, callback) => {
+      receivedAdminRequests.push(["archiveTenant", call.request]);
+      callback(null, {
+        id: call.request.tenantId, slug: "saudi-tracking", nameEn: "Saudi Tracking", nameAr: "التتبع السعودي",
+        status: "ARCHIVED", createdAt: new Date("2026-09-01T00:00:00.000Z"), updatedAt: new Date("2026-09-03T00:00:00.000Z"),
+      });
+    },
+    restoreTenant: (call, callback) => {
+      callback(toTenantRpcServiceError("TENANT_NOT_ARCHIVED"), null);
+    },
+    deleteAccountAdmin: (call, callback) => {
+      receivedAdminRequests.push(["delete", call.request]);
+      callback(null, { ...adminRecord, archivedAt: new Date("2026-09-05T00:00:00.000Z") });
+    },
+    restoreAccountAdmin: (call, callback) => {
+      receivedAdminRequests.push(["restore", call.request]);
+      callback(null, { ...adminRecord, status: "ACTIVE" });
+    },
     getTenant: (call, callback) => {
       serverAuthTokenGet = String(call.metadata.get("authorization")[0] ?? "");
       if (call.request.tenantId !== tenantId) {
@@ -386,6 +404,22 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
     (err) => err.details.messageKey === "INVALID_TENANT_RPC_INPUT",
   );
   assert.equal(receivedSubscriptionRequests.length, 1);
+
+  const archivedTenant = await client.archive({ tenantId }, "token-archive");
+  assert.equal(archivedTenant.status, "ARCHIVED");
+  await assert.rejects(() => client.restore({ tenantId }, "token-restore"), (err) => {
+    assert.equal(err.details.status, 409);
+    assert.equal(err.details.messageKey, "TENANT_NOT_ARCHIVED");
+    return true;
+  });
+  const archivedAdmins = await client.listAccountAdmins({ archived: true }, "token-admins");
+  assert.equal(receivedAdminRequests.at(-1)[1].archived, true);
+  assert.equal(archivedAdmins.data.length, 1);
+  const deletedAdmin = await client.deleteAccountAdmin({ tenantId, adminId }, "token-admins");
+  assert.equal(deletedAdmin.archivedAt, "2026-09-05T00:00:00.000Z");
+  const restoredAdmin = await client.restoreAccountAdmin({ tenantId, adminId }, "token-admins");
+  assert.equal(restoredAdmin.status, "ACTIVE");
+  assert.equal(restoredAdmin.archivedAt, undefined);
 
   const statusInput = { tenantId, operationId };
   const statusRes = await client.status(statusInput, "token-xyz-456");

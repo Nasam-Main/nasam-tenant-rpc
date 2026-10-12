@@ -9,6 +9,9 @@ service TenantControl {
   rpc UpdateTenant(UpdateTenantRequest) returns (TenantRecord);
   rpc GetProvisioningStatus(GetProvisioningStatusRequest) returns (ProvisioningStatus);
   rpc GetTenant(GetTenantRequest) returns (TenantRecord);
+  // Archived tenants read as unknown to their users until restored.
+  rpc ArchiveTenant(GetTenantRequest) returns (TenantRecord);
+  rpc RestoreTenant(GetTenantRequest) returns (TenantRecord);
   rpc ListTenants(ListTenantsRequest) returns (ListTenantsResponse);
   rpc ListModules(ListModulesRequest) returns (ListModulesResponse);
   rpc ListSubscriptions(ListSubscriptionsRequest) returns (ListSubscriptionsResponse);
@@ -17,6 +20,9 @@ service TenantControl {
   rpc GetAccountAdmin(GetAccountAdminRequest) returns (AccountAdminRecord);
   rpc CreateAccountAdmin(CreateAccountAdminRequest) returns (AccountAdminRecord);
   rpc UpdateAccountAdmin(UpdateAccountAdminRequest) returns (AccountAdminRecord);
+  // Soft delete: the admin is archived and can be restored.
+  rpc DeleteAccountAdmin(GetAccountAdminRequest) returns (AccountAdminRecord);
+  rpc RestoreAccountAdmin(GetAccountAdminRequest) returns (AccountAdminRecord);
 }
 
 message UpdateTenantRequest {
@@ -174,6 +180,8 @@ message AccountAdminRecord {
   string status = 10;
   google.protobuf.Timestamp created_at = 11;
   google.protobuf.Timestamp updated_at = 12;
+  // Set only on archived admins.
+  optional google.protobuf.Timestamp archived_at = 13;
 }
 
 message ListAccountAdminsRequest {
@@ -182,6 +190,8 @@ message ListAccountAdminsRequest {
   optional string search = 3;
   optional string status = 4;
   optional string tenant_id = 5;
+  // True lists the archived admins instead of the living ones.
+  optional bool archived = 6;
 }
 
 message ListAccountAdminsResponse {

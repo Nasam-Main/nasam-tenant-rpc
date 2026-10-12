@@ -288,6 +288,21 @@ export function createTenantControlGrpcClient(
     });
   };
 
+  /** Archives or restores one tenant; both answer with its registry record. */
+  const tenantTransition = (
+    method: "archiveTenant" | "restoreTenant",
+  ) => async (input: TenantGetInput, token: string): Promise<TenantRecordResult> => {
+    const validated = parseInput<TenantGetInput>(tenantGetInputSchema, input);
+    return unary(
+      client[method] as unknown as UnaryMethod<GetTenantRequest, TenantRecord>,
+      { tenantId: validated.tenantId },
+      token,
+      toDomainTenantRecord,
+    );
+  };
+  const archive = tenantTransition("archiveTenant");
+  const restore = tenantTransition("restoreTenant");
+
   const list = async (
     input: TenantListInput,
     token: string,
@@ -399,6 +414,7 @@ export function createTenantControlGrpcClient(
       status: admin.status,
       createdAt: admin.createdAt?.toISOString(),
       updatedAt: admin.updatedAt?.toISOString(),
+      archivedAt: admin.archivedAt?.toISOString(),
     });
   }
 
@@ -477,6 +493,32 @@ export function createTenantControlGrpcClient(
     );
   };
 
+  const deleteAccountAdmin = async (
+    input: AccountAdminGetInput,
+    token: string,
+  ): Promise<AccountAdminRecordResult> => {
+    const validated = parseInput<AccountAdminGetInput>(accountAdminGetInputSchema, input);
+    return unary(
+      client.deleteAccountAdmin as unknown as UnaryMethod<GetAccountAdminRequest, AccountAdminRecord>,
+      validated,
+      token,
+      toDomainAccountAdmin,
+    );
+  };
+
+  const restoreAccountAdmin = async (
+    input: AccountAdminGetInput,
+    token: string,
+  ): Promise<AccountAdminRecordResult> => {
+    const validated = parseInput<AccountAdminGetInput>(accountAdminGetInputSchema, input);
+    return unary(
+      client.restoreAccountAdmin as unknown as UnaryMethod<GetAccountAdminRequest, AccountAdminRecord>,
+      validated,
+      token,
+      toDomainAccountAdmin,
+    );
+  };
+
   const createSubscription = async (
     input: SubscriptionCreateInput,
     token: string,
@@ -516,6 +558,8 @@ export function createTenantControlGrpcClient(
     create,
     update,
     get,
+    archive,
+    restore,
     status,
     list,
     listModules,
@@ -525,6 +569,8 @@ export function createTenantControlGrpcClient(
     getAccountAdmin,
     createAccountAdmin,
     updateAccountAdmin,
+    deleteAccountAdmin,
+    restoreAccountAdmin,
     close,
   };
 }
