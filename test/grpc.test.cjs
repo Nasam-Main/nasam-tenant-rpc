@@ -223,10 +223,47 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
         modules: [{
           id: "55555555-5555-4555-8555-555555555555", moduleId: line.moduleId,
           nameEn: "Fleet", nameAr: "الأسطول", descriptionEn: "", descriptionAr: "",
-          price: line.price, startDate: line.startDate, endDate: line.endDate, status: "ACTIVE",
+          price: "24000.00", quantity: line.quantity, startDate: line.startDate,
+          endDate: new Date("2027-09-30T20:59:59.999Z"), status: "ACTIVE",
         }],
-        totalPrice: line.price, currency: "SAR", status: "ACTIVE",
+        devices: call.request.devices ? {
+          id: "77777777-7777-4777-8777-777777777777", quantity: call.request.devices.quantity,
+          price: "96000.00", startDate: call.request.devices.startDate,
+          endDate: new Date("2027-09-30T20:59:59.999Z"), status: "ACTIVE",
+        } : undefined,
+        totalPrice: "120000.00", currency: "SAR", status: "ACTIVE",
         createdAt: new Date("2026-09-01T00:00:00.000Z"),
+      });
+    },
+    getSubscription: (call, callback) => {
+      callback(null, {
+        id: "44444444-4444-4444-8444-444444444444",
+        organizationId: call.request.tenantId,
+        organizationNameEn: "Saudi Tracking",
+        organizationNameAr: "التتبع السعودي",
+        current: [{
+          id: "55555555-5555-4555-8555-555555555555", type: "SUBSCRIPTION_LINE_TYPE_MODULE",
+          moduleId: "66666666-6666-4666-8666-666666666666", nameEn: "Fleet", nameAr: "الأسطول",
+          quantity: 100, unitPrice: "20.00", durationMonths: 12, totalPrice: "24000.00",
+          startDate: new Date("2026-09-30T21:00:00.000Z"), endDate: new Date("2027-09-30T20:59:59.999Z"),
+          status: "ACTIVE", used: 120, remaining: 0, overage: 20,
+        }],
+        history: [],
+        totalPrice: "24000.00",
+        currency: "SAR",
+      });
+    },
+    setSubscriptionLineStatus: (call, callback) => {
+      receivedAdminRequests.push(["setSubscriptionLineStatus", call.request]);
+      callback(toTenantRpcServiceError("SUBSCRIPTION_LINE_EXPIRED"), null);
+    },
+    getUsageReport: (call, callback) => {
+      callback(null, {
+        tenantId: call.request.tenantId, year: call.request.year, month: call.request.month,
+        rows: [
+          { type: "SUBSCRIPTION_LINE_TYPE_DEVICES", paid: 0, actual: 3, remaining: 0 },
+          { type: "SUBSCRIPTION_LINE_TYPE_MODULE", moduleId: "66666666-6666-4666-8666-666666666666", nameEn: "Fleet", nameAr: "الأسطول", paid: 100, actual: 120, remaining: 0, usagePercent: 120 },
+        ],
       });
     },
     updateAccountAdmin: (call, callback) => {
@@ -251,14 +288,16 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
       receivedAdminRequests.push(["restore", call.request]);
       callback(null, { ...adminRecord, status: "ACTIVE" });
     },
-    updateModulePrice: (call, callback) => {
-      receivedAdminRequests.push(["updateModulePrice", call.request]);
+    updateModulePriceTiers: (call, callback) => {
+      receivedAdminRequests.push(["updateModulePriceTiers", call.request]);
       callback(null, {
         id: call.request.moduleId, slug: "FLEET", nameEn: "Fleet", nameAr: "الأسطول",
-        descriptionEn: "", descriptionAr: "",
-        purchasingPrice: call.request.sellingPrice, sellingPrice: call.request.sellingPrice,
+        descriptionEn: "", descriptionAr: "", priceTiers: call.request.priceTiers,
         createdAt: new Date("2026-09-01T00:00:00.000Z"), updatedAt: new Date("2026-09-06T00:00:00.000Z"),
       });
+    },
+    getDevicePricing: (call, callback) => {
+      callback(null, { priceTiers: [{ fromQuantity: 1, monthlyUnitPrice: "8.00" }] });
     },
     getTenant: (call, callback) => {
       serverAuthTokenGet = String(call.metadata.get("authorization")[0] ?? "");
@@ -399,20 +438,39 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
   );
 
   const moduleId = "66666666-6666-4666-8666-666666666666";
+  const term = { quantity: 100, totalPrice: "24000.00", startDate: "2026-09-30T21:00:00.000Z", durationMonths: 12 };
   const subscription = await client.createSubscription({
     tenantId,
-    modules: [{ moduleId, price: "1500.00", startDate: "2026-09-30T21:00:00.000Z", endDate: "2027-09-30T21:00:00.000Z" }],
+    modules: [{ moduleId, ...term }],
+    devices: { ...term, quantity: 1000, totalPrice: "96000.00" },
   }, "token-subscriptions");
   assert.ok(receivedSubscriptionRequests[0].modules[0].startDate instanceof Date);
+  assert.equal(receivedSubscriptionRequests[0].modules[0].quantity, 100);
+  assert.equal(receivedSubscriptionRequests[0].devices.quantity, 1000);
   assert.equal(subscription.organizationId, tenantId);
-  assert.equal(subscription.modules[0].price, "1500.00");
+  assert.equal(subscription.modules[0].quantity, 100);
   assert.equal(subscription.modules[0].startDate, "2026-09-30T21:00:00.000Z");
+  assert.equal(subscription.devices.quantity, 1000);
   assert.equal(subscription.createdAt, "2026-09-01T00:00:00.000Z");
   await assert.rejects(
-    () => client.createSubscription({ tenantId, modules: [{ moduleId, price: "1500.00", startDate: "2026-09-30T21:00:00.000Z" }] }, "t"),
+    () => client.createSubscription({ tenantId, modules: [{ moduleId, ...term, durationMonths: undefined }] }, "t"),
     (err) => err.details.messageKey === "INVALID_TENANT_RPC_INPUT",
   );
   assert.equal(receivedSubscriptionRequests.length, 1);
+
+  const details = await client.getSubscription({ tenantId }, "token-subscriptions");
+  assert.equal(details.current[0].type, "MODULE");
+  assert.equal(details.current[0].remaining, 0);
+  assert.equal(details.current[0].endDate, "2027-09-30T20:59:59.999Z");
+  await assert.rejects(
+    () => client.setSubscriptionLineStatus({ tenantId, lineId: details.current[0].id, type: "MODULE", status: "ACTIVE" }, "t"),
+    (err) => err.details.status === 409 && err.details.messageKey === "SUBSCRIPTION_LINE_EXPIRED",
+  );
+  assert.equal(receivedAdminRequests.at(-1)[1].type, "SUBSCRIPTION_LINE_TYPE_MODULE");
+  const report = await client.getUsageReport({ tenantId, year: 2026, month: 10 }, "token-reports");
+  assert.equal(report.rows[0].type, "DEVICES");
+  assert.equal(report.rows[0].usagePercent, null);
+  assert.equal(report.rows[1].usagePercent, 120);
 
   const archivedTenant = await client.archive({ tenantId }, "token-archive");
   assert.equal(archivedTenant.status, "ARCHIVED");
@@ -430,20 +488,22 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
   assert.equal(restoredAdmin.status, "ACTIVE");
   assert.equal(restoredAdmin.archivedAt, undefined);
 
-  const moduleRecord = await client.updateModulePrice(
-    { moduleId: "66666666-6666-4666-8666-666666666666", sellingPrice: 1750.5 },
+  const priceTiers = [
+    { fromQuantity: 1, toQuantity: 100, monthlyUnitPrice: "200.00" },
+    { fromQuantity: 101, monthlyUnitPrice: "180.00" },
+  ];
+  const moduleRecord = await client.updateModulePriceTiers(
+    { moduleId: "66666666-6666-4666-8666-666666666666", priceTiers },
     "token-modules",
   );
-  assert.equal(moduleRecord.sellingPrice, 1750.5);
+  assert.deepEqual(moduleRecord.priceTiers, priceTiers);
   assert.equal(moduleRecord.updatedAt, "2026-09-06T00:00:00.000Z");
   await assert.rejects(
-    () => client.updateModulePrice({ moduleId: "66666666-6666-4666-8666-666666666666", sellingPrice: 1.234 }, "t"),
+    () => client.updateModulePriceTiers({ moduleId: "66666666-6666-4666-8666-666666666666", priceTiers: [{ fromQuantity: 5, toQuantity: 1, monthlyUnitPrice: "1" }] }, "t"),
     (err) => err.details.messageKey === "INVALID_TENANT_RPC_INPUT",
   );
-  await assert.rejects(
-    () => client.updateModulePrice({ moduleId: "66666666-6666-4666-8666-666666666666", sellingPrice: -1 }, "t"),
-    (err) => err.details.messageKey === "INVALID_TENANT_RPC_INPUT",
-  );
+  const devicePricing = await client.getDevicePricing("token-devices");
+  assert.deepEqual(devicePricing.priceTiers, [{ fromQuantity: 1, monthlyUnitPrice: "8.00" }]);
 
   const statusInput = { tenantId, operationId };
   const statusRes = await client.status(statusInput, "token-xyz-456");

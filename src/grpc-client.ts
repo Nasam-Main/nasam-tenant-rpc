@@ -1,3 +1,4 @@
+import type { z } from "zod";
 import { credentials, Metadata, type ChannelCredentials } from "@grpc/grpc-js";
 import {
   tenantCreateInputSchema,
@@ -16,12 +17,21 @@ import {
   tenantListResultSchema,
   type TenantListInput,
   type TenantListResult,
+  moduleListInputSchema,
   moduleListResultSchema,
   moduleRecordSchema,
-  moduleUpdatePriceInputSchema,
+  moduleGetInputSchema,
+  moduleUpdatePriceTiersInputSchema,
+  devicePricingRecordSchema,
+  devicePricingUpdateInputSchema,
+  type PriceTierInput,
+  type ModuleListInput,
   type ModuleListResult,
   type ModuleRecordResult,
-  type ModuleUpdatePriceInput,
+  type ModuleGetInput,
+  type ModuleUpdatePriceTiersInput,
+  type DevicePricingRecordResult,
+  type DevicePricingUpdateInput,
   subscriptionListInputSchema,
   accountAdminListInputSchema,
   accountAdminGetInputSchema,
@@ -42,6 +52,17 @@ import {
   type SubscriptionListResult,
   type SubscriptionRecordResult,
   type SubscriptionCreateInput,
+  subscriptionDetailsSchema,
+  subscriptionGetInputSchema,
+  subscriptionLineStatusInputSchema,
+  usageReportInputSchema,
+  usageReportSchema,
+  type SubscriptionLineType,
+  type SubscriptionDetailsResult,
+  type SubscriptionGetInput,
+  type SubscriptionLineStatusInput,
+  type UsageReportInput,
+  type UsageReportResult,
 } from "./schemas";
 import { TenantRpcClientError, fromGrpcError } from "./errors";
 import {
@@ -57,7 +78,19 @@ import {
   type ListModulesRequest,
   type ListModulesResponse,
   type ModuleRecord,
-  type UpdateModulePriceRequest,
+  type PriceTier,
+  type GetModuleRequest,
+  type UpdateModulePriceTiersRequest,
+  type GetDevicePricingRequest,
+  type DevicePricingRecord,
+  type UpdateDevicePricingRequest,
+  type GetSubscriptionRequest,
+  type SubscriptionDetails,
+  type SubscriptionLineDetails,
+  type SetSubscriptionLineStatusRequest,
+  type GetUsageReportRequest,
+  type UsageReport,
+  SubscriptionLineType as ProtoSubscriptionLineType,
   type ListSubscriptionsRequest,
   type ListSubscriptionsResponse,
   type SubscriptionRecord,
@@ -345,26 +378,50 @@ export function createTenantControlGrpcClient(
     client.close();
   };
 
+  function toDomainTiers(tiers: PriceTier[]): PriceTierInput[] {
+    return tiers.map((tier) => ({
+      fromQuantity: tier.fromQuantity,
+      ...(tier.toQuantity !== undefined ? { toQuantity: tier.toQuantity } : {}),
+      monthlyUnitPrice: tier.monthlyUnitPrice,
+    }));
+  }
+
   function toDomainModule(module: ModuleRecord): ModuleRecordResult {
     return moduleRecordSchema.parse({
       id: module.id, slug: module.slug, nameEn: module.nameEn, nameAr: module.nameAr,
       descriptionEn: module.descriptionEn, descriptionAr: module.descriptionAr,
-      purchasingPrice: module.purchasingPrice, sellingPrice: module.sellingPrice,
+      priceTiers: toDomainTiers(module.priceTiers),
       createdAt: module.createdAt?.toISOString(), updatedAt: module.updatedAt?.toISOString(),
     });
   }
 
-  const listModules = async (token: string): Promise<ModuleListResult> => {
+  function toDomainDevicePricing(record: DevicePricingRecord): DevicePricingRecordResult {
+    return devicePricingRecordSchema.parse({
+      priceTiers: toDomainTiers(record.priceTiers),
+      updatedAt: record.updatedAt?.toISOString(),
+    });
+  }
+
+  const listModules = async (input: ModuleListInput, token: string): Promise<ModuleListResult> => {
+    const validated = parseInput<z.output<typeof moduleListInputSchema>>(moduleListInputSchema, input);
     const metadata = new Metadata();
     metadata.set("authorization", `Bearer ${token}`);
     const deadline = new Date(Date.now() + defaultDeadlineMs);
     return new Promise<ModuleListResult>((resolve, reject) => {
-      client.listModules({} as ListModulesRequest, metadata, { deadline }, (err, response: ListModulesResponse) => {
-        if (err) return reject(fromGrpcError(err));
-        try {
-          resolve(moduleListResultSchema.parse({ data: response.modules.map(toDomainModule) }));
-        } catch (error) { reject(error); }
-      });
+      client.listModules(
+        { page: validated.page, limit: validated.limit, search: validated.search } as ListModulesRequest,
+        metadata,
+        { deadline },
+        (err, response: ListModulesResponse) => {
+          if (err) return reject(fromGrpcError(err));
+          try {
+            resolve(moduleListResultSchema.parse({
+              data: response.modules.map(toDomainModule),
+              meta: { page: response.page, limit: response.limit, total: response.total, totalPages: response.totalPages },
+            }));
+          } catch (error) { reject(error); }
+        },
+      );
     });
   };
 
@@ -372,7 +429,10 @@ export function createTenantControlGrpcClient(
     return subscriptionRecordSchema.parse({
       id: subscription.id, organizationId: subscription.organizationId,
       organizationNameEn: subscription.organizationNameEn, organizationNameAr: subscription.organizationNameAr,
-      modules: subscription.modules.map((module) => ({ id: module.id, moduleId: module.moduleId, nameEn: module.nameEn, nameAr: module.nameAr, descriptionEn: module.descriptionEn, descriptionAr: module.descriptionAr, price: module.price, startDate: module.startDate?.toISOString() ?? null, endDate: module.endDate?.toISOString() ?? null, status: module.status })),
+      modules: subscription.modules.map((module) => ({ id: module.id, moduleId: module.moduleId, nameEn: module.nameEn, nameAr: module.nameAr, descriptionEn: module.descriptionEn, descriptionAr: module.descriptionAr, price: module.price, quantity: module.quantity ?? null, startDate: module.startDate?.toISOString() ?? null, endDate: module.endDate?.toISOString() ?? null, status: module.status })),
+      devices: subscription.devices
+        ? { id: subscription.devices.id, quantity: subscription.devices.quantity, price: subscription.devices.price, startDate: subscription.devices.startDate?.toISOString(), endDate: subscription.devices.endDate?.toISOString(), status: subscription.devices.status }
+        : null,
       totalPrice: subscription.totalPrice, currency: subscription.currency, status: subscription.status, createdAt: subscription.createdAt?.toISOString(),
     });
   }
@@ -529,16 +589,151 @@ export function createTenantControlGrpcClient(
     );
   };
 
-  const updateModulePrice = async (
-    input: ModuleUpdatePriceInput,
+  const getModule = async (
+    input: ModuleGetInput,
     token: string,
   ): Promise<ModuleRecordResult> => {
-    const validated = parseInput<ModuleUpdatePriceInput>(moduleUpdatePriceInputSchema, input);
+    const validated = parseInput<ModuleGetInput>(moduleGetInputSchema, input);
     return unary(
-      client.updateModulePrice as unknown as UnaryMethod<UpdateModulePriceRequest, ModuleRecord>,
+      client.getModule as unknown as UnaryMethod<GetModuleRequest, ModuleRecord>,
       validated,
       token,
       toDomainModule,
+    );
+  };
+
+  const updateModulePriceTiers = async (
+    input: ModuleUpdatePriceTiersInput,
+    token: string,
+  ): Promise<ModuleRecordResult> => {
+    const validated = parseInput<ModuleUpdatePriceTiersInput>(moduleUpdatePriceTiersInputSchema, input);
+    return unary(
+      client.updateModulePriceTiers as unknown as UnaryMethod<UpdateModulePriceTiersRequest, ModuleRecord>,
+      validated,
+      token,
+      toDomainModule,
+    );
+  };
+
+  const getDevicePricing = async (token: string): Promise<DevicePricingRecordResult> =>
+    unary(
+      client.getDevicePricing as unknown as UnaryMethod<GetDevicePricingRequest, DevicePricingRecord>,
+      {},
+      token,
+      toDomainDevicePricing,
+    );
+
+  const updateDevicePricing = async (
+    input: DevicePricingUpdateInput,
+    token: string,
+  ): Promise<DevicePricingRecordResult> => {
+    const validated = parseInput<DevicePricingUpdateInput>(devicePricingUpdateInputSchema, input);
+    return unary(
+      client.updateDevicePricing as unknown as UnaryMethod<UpdateDevicePricingRequest, DevicePricingRecord>,
+      validated,
+      token,
+      toDomainDevicePricing,
+    );
+  };
+
+  const LINE_TYPE_TO_PROTO: Record<SubscriptionLineType, ProtoSubscriptionLineType> = {
+    MODULE: ProtoSubscriptionLineType.SUBSCRIPTION_LINE_TYPE_MODULE,
+    DEVICES: ProtoSubscriptionLineType.SUBSCRIPTION_LINE_TYPE_DEVICES,
+  };
+
+  function toDomainLineType(type: ProtoSubscriptionLineType): SubscriptionLineType {
+    return type === ProtoSubscriptionLineType.SUBSCRIPTION_LINE_TYPE_DEVICES ? "DEVICES" : "MODULE";
+  }
+
+  function toDomainLine(line: SubscriptionLineDetails) {
+    return {
+      id: line.id,
+      type: toDomainLineType(line.type),
+      moduleId: line.moduleId ?? null,
+      nameEn: line.nameEn ?? null,
+      nameAr: line.nameAr ?? null,
+      quantity: line.quantity ?? null,
+      unitPrice: line.unitPrice ?? null,
+      durationMonths: line.durationMonths ?? null,
+      totalPrice: line.totalPrice ?? null,
+      startDate: line.startDate?.toISOString() ?? null,
+      endDate: line.endDate?.toISOString() ?? null,
+      status: line.status,
+      used: line.used ?? null,
+      remaining: line.remaining ?? null,
+      overage: line.overage ?? null,
+    };
+  }
+
+  function toDomainSubscriptionDetails(details: SubscriptionDetails): SubscriptionDetailsResult {
+    return subscriptionDetailsSchema.parse({
+      id: details.id,
+      organizationId: details.organizationId,
+      organizationNameEn: details.organizationNameEn,
+      organizationNameAr: details.organizationNameAr,
+      current: details.current.map(toDomainLine),
+      history: details.history.map(toDomainLine),
+      totalPrice: details.totalPrice,
+      currency: details.currency,
+    });
+  }
+
+  const getSubscription = async (
+    input: SubscriptionGetInput,
+    token: string,
+  ): Promise<SubscriptionDetailsResult> => {
+    const validated = parseInput<SubscriptionGetInput>(subscriptionGetInputSchema, input);
+    return unary(
+      client.getSubscription as unknown as UnaryMethod<GetSubscriptionRequest, SubscriptionDetails>,
+      validated,
+      token,
+      toDomainSubscriptionDetails,
+    );
+  };
+
+  const setSubscriptionLineStatus = async (
+    input: SubscriptionLineStatusInput,
+    token: string,
+  ): Promise<SubscriptionDetailsResult> => {
+    const validated = parseInput<SubscriptionLineStatusInput>(subscriptionLineStatusInputSchema, input);
+    const request: SetSubscriptionLineStatusRequest = {
+      tenantId: validated.tenantId,
+      lineId: validated.lineId,
+      type: LINE_TYPE_TO_PROTO[validated.type],
+      status: validated.status,
+    };
+    return unary(
+      client.setSubscriptionLineStatus as unknown as UnaryMethod<SetSubscriptionLineStatusRequest, SubscriptionDetails>,
+      request,
+      token,
+      toDomainSubscriptionDetails,
+    );
+  };
+
+  const getUsageReport = async (
+    input: UsageReportInput,
+    token: string,
+  ): Promise<UsageReportResult> => {
+    const validated = parseInput<UsageReportInput>(usageReportInputSchema, input);
+    return unary(
+      client.getUsageReport as unknown as UnaryMethod<GetUsageReportRequest, UsageReport>,
+      validated,
+      token,
+      (report) => usageReportSchema.parse({
+        tenantId: report.tenantId,
+        year: report.year,
+        month: report.month,
+        rows: report.rows.map((row) => ({
+          type: toDomainLineType(row.type),
+          moduleId: row.moduleId ?? null,
+          nameEn: row.nameEn ?? null,
+          nameAr: row.nameAr ?? null,
+          paid: row.paid,
+          actual: row.actual,
+          remaining: row.remaining,
+          usagePercent: row.usagePercent ?? null,
+        })),
+      }),
     );
   };
 
@@ -546,15 +741,24 @@ export function createTenantControlGrpcClient(
     input: SubscriptionCreateInput,
     token: string,
   ): Promise<SubscriptionRecordResult> => {
-    const validated = parseInput<SubscriptionCreateInput>(subscriptionCreateInputSchema, input);
+    const validated = parseInput<z.output<typeof subscriptionCreateInputSchema>>(subscriptionCreateInputSchema, input);
     const request: CreateSubscriptionRequest = {
       tenantId: validated.tenantId,
       modules: validated.modules.map((line) => ({
         moduleId: line.moduleId,
-        price: line.price,
-        startDate: line.startDate ? new Date(line.startDate) : undefined,
-        endDate: line.endDate ? new Date(line.endDate) : undefined,
+        quantity: line.quantity,
+        totalPrice: line.totalPrice,
+        startDate: new Date(line.startDate),
+        durationMonths: line.durationMonths,
       })),
+      devices: validated.devices
+        ? {
+            quantity: validated.devices.quantity,
+            totalPrice: validated.devices.totalPrice,
+            startDate: new Date(validated.devices.startDate),
+            durationMonths: validated.devices.durationMonths,
+          }
+        : undefined,
     };
     return unary(
       client.createSubscription as unknown as UnaryMethod<CreateSubscriptionRequest, SubscriptionRecord>,
@@ -586,9 +790,15 @@ export function createTenantControlGrpcClient(
     status,
     list,
     listModules,
-    updateModulePrice,
+    getModule,
+    updateModulePriceTiers,
+    getDevicePricing,
+    updateDevicePricing,
     listSubscriptions,
     createSubscription,
+    getSubscription,
+    setSubscriptionLineStatus,
+    getUsageReport,
     listAccountAdmins,
     getAccountAdmin,
     createAccountAdmin,

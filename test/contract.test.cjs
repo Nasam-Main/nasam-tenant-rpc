@@ -5,6 +5,8 @@ const {
   provisioningStatusSchema,
   tenantCreateInputSchema,
   subscriptionCreateInputSchema,
+  moduleUpdatePriceTiersInputSchema,
+  priceTierGaps,
 } = require("../dist");
 
 const tenantId = "11111111-1111-4111-8111-111111111111";
@@ -81,13 +83,50 @@ test("tenant updates preserve branding presence so an empty object can clear ove
   );
 });
 
-test("subscription lines take both term dates after one another, or neither", () => {
+test("a capacity line needs a quantity, a price, a start and a duration", () => {
   const moduleId = "66666666-6666-4666-8666-666666666666";
-  const parse = (line) => subscriptionCreateInputSchema.safeParse({ tenantId, modules: [{ moduleId, price: "10.50", ...line }] }).success;
-  assert.equal(parse({}), true);
-  assert.equal(parse({ startDate: "2026-01-01T00:00:00.000Z", endDate: "2027-01-01T00:00:00.000Z" }), true);
-  assert.equal(parse({ startDate: "2026-01-01T00:00:00.000Z" }), false);
-  assert.equal(parse({ startDate: "2027-01-01T00:00:00.000Z", endDate: "2026-01-01T00:00:00.000Z" }), false);
-  assert.equal(parse({ price: "-1" }), false);
-  assert.equal(subscriptionCreateInputSchema.safeParse({ tenantId, modules: [] }).success, false);
+  const term = { quantity: 100, totalPrice: "12600.00", startDate: "2026-01-01T00:00:00.000Z", durationMonths: 12 };
+  const parse = (input) => subscriptionCreateInputSchema.safeParse({ tenantId, ...input }).success;
+  assert.equal(parse({ modules: [{ moduleId, ...term }] }), true);
+  assert.equal(parse({ devices: term }), true);
+  assert.equal(parse({ modules: [{ moduleId, ...term }], devices: term }), true);
+  assert.equal(parse({ modules: [] }), false);
+  assert.equal(parse({ modules: [{ moduleId, ...term, quantity: 0 }] }), false);
+  assert.equal(parse({ modules: [{ moduleId, ...term, quantity: 99_999 }] }), true);
+  assert.equal(parse({ modules: [{ moduleId, ...term, quantity: 100_000 }] }), false);
+  assert.equal(parse({ modules: [{ moduleId, ...term, totalPrice: "-1" }] }), false);
+  assert.equal(parse({ modules: [{ moduleId, ...term, durationMonths: 0 }] }), false);
+  const { startDate, ...undated } = term;
+  assert.equal(parse({ devices: undated }), false);
+});
+
+test("pricing ranges may not overlap, run backwards or leave an open range before the last", () => {
+  const moduleId = "66666666-6666-4666-8666-666666666666";
+  const error = (priceTiers) => {
+    const result = moduleUpdatePriceTiersInputSchema.safeParse({ moduleId, priceTiers });
+    return result.success ? null : result.error.issues[0].message;
+  };
+  assert.equal(error([
+    { fromQuantity: 1, toQuantity: 100, monthlyUnitPrice: "200.00" },
+    { fromQuantity: 101, monthlyUnitPrice: "180.00" },
+  ]), null);
+  assert.equal(error([{ fromQuantity: 10, toQuantity: 5, monthlyUnitPrice: "1" }]), "PRICE_TIER_FROM_AFTER_TO");
+  assert.equal(error([
+    { fromQuantity: 1, toQuantity: 100, monthlyUnitPrice: "1" },
+    { fromQuantity: 100, toQuantity: 200, monthlyUnitPrice: "1" },
+  ]), "PRICE_TIERS_OVERLAP");
+  assert.equal(error([
+    { fromQuantity: 1, monthlyUnitPrice: "1" },
+    { fromQuantity: 101, toQuantity: 200, monthlyUnitPrice: "1" },
+  ]), "PRICE_TIER_OPEN_NOT_LAST");
+  assert.notEqual(error([{ fromQuantity: 0, monthlyUnitPrice: "1" }]), null);
+  assert.notEqual(error([{ fromQuantity: 1, monthlyUnitPrice: "1.234" }]), null);
+});
+
+test("gaps between ranges are reported, not refused", () => {
+  assert.deepEqual(priceTierGaps([
+    { fromQuantity: 1, toQuantity: 100, monthlyUnitPrice: "1" },
+    { fromQuantity: 151, monthlyUnitPrice: "1" },
+  ]), [{ fromQuantity: 101, toQuantity: 150 }]);
+  assert.deepEqual(priceTierGaps([{ fromQuantity: 1, monthlyUnitPrice: "1" }]), []);
 });

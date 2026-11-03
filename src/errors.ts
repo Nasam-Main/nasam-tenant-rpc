@@ -100,6 +100,46 @@ export const TENANT_RPC_ERROR_MAPPINGS: Record<string, TenantRpcMappingEntry> = 
     grpcName: "ALREADY_EXISTS",
     httpStatus: 409,
   },
+  PRICE_TIER_FROM_AFTER_TO: {
+    grpcCode: status.INVALID_ARGUMENT,
+    grpcName: "INVALID_ARGUMENT",
+    httpStatus: 400,
+  },
+  PRICE_TIERS_OVERLAP: {
+    grpcCode: status.INVALID_ARGUMENT,
+    grpcName: "INVALID_ARGUMENT",
+    httpStatus: 400,
+  },
+  PRICE_TIER_OPEN_NOT_LAST: {
+    grpcCode: status.INVALID_ARGUMENT,
+    grpcName: "INVALID_ARGUMENT",
+    httpStatus: 400,
+  },
+  SUBSCRIPTION_LINE_NOT_FOUND: {
+    grpcCode: status.NOT_FOUND,
+    grpcName: "NOT_FOUND",
+    httpStatus: 404,
+  },
+  SUBSCRIPTION_LINE_EXPIRED: {
+    grpcCode: status.FAILED_PRECONDITION,
+    grpcName: "FAILED_PRECONDITION",
+    httpStatus: 409,
+  },
+  SUBSCRIPTION_LINE_STATUS_UNCHANGED: {
+    grpcCode: status.FAILED_PRECONDITION,
+    grpcName: "FAILED_PRECONDITION",
+    httpStatus: 409,
+  },
+  DEVICE_LINE_ALREADY_SUBSCRIBED: {
+    grpcCode: status.ALREADY_EXISTS,
+    grpcName: "ALREADY_EXISTS",
+    httpStatus: 409,
+  },
+  USAGE_REPORT_NOT_AVAILABLE: {
+    grpcCode: status.NOT_FOUND,
+    grpcName: "NOT_FOUND",
+    httpStatus: 404,
+  },
   INVALID_DELEGATION_TOKEN: {
     grpcCode: status.UNAUTHENTICATED,
     grpcName: "UNAUTHENTICATED",

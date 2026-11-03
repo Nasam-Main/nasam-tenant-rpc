@@ -14,10 +14,21 @@ service TenantControl {
   rpc RestoreTenant(GetTenantRequest) returns (TenantRecord);
   rpc ListTenants(ListTenantsRequest) returns (ListTenantsResponse);
   rpc ListModules(ListModulesRequest) returns (ListModulesResponse);
-  // Reprices a module in the catalog. Lines already sold keep their price.
-  rpc UpdateModulePrice(UpdateModulePriceRequest) returns (ModuleRecord);
+  rpc GetModule(GetModuleRequest) returns (ModuleRecord);
+  // Replaces a module's pricing ranges. Ranges only pre-fill a sale; lines
+  // already sold keep the figures they were sold at.
+  rpc UpdateModulePriceTiers(UpdateModulePriceTiersRequest) returns (ModuleRecord);
+  rpc GetDevicePricing(GetDevicePricingRequest) returns (DevicePricingRecord);
+  rpc UpdateDevicePricing(UpdateDevicePricingRequest) returns (DevicePricingRecord);
   rpc ListSubscriptions(ListSubscriptionsRequest) returns (ListSubscriptionsResponse);
+  // Sells modules and/or devices capacity to a tenant: appends lines to its
+  // subscription. Used both to create a subscription and to add to one.
   rpc CreateSubscription(CreateSubscriptionRequest) returns (SubscriptionRecord);
+  // One tenant's lines, current and past, with live capacity usage.
+  rpc GetSubscription(GetSubscriptionRequest) returns (SubscriptionDetails);
+  // Activates or deactivates one line. Its dates never change.
+  rpc SetSubscriptionLineStatus(SetSubscriptionLineStatusRequest) returns (SubscriptionDetails);
+  rpc GetUsageReport(GetUsageReportRequest) returns (UsageReport);
   rpc ListAccountAdmins(ListAccountAdminsRequest) returns (ListAccountAdminsResponse);
   rpc GetAccountAdmin(GetAccountAdminRequest) returns (AccountAdminRecord);
   rpc CreateAccountAdmin(CreateAccountAdminRequest) returns (AccountAdminRecord);
@@ -94,7 +105,20 @@ message ListTenantsResponse {
   uint32 total_pages = 5;
 }
 
-message ListModulesRequest {}
+message ListModulesRequest {
+  uint32 page = 1;
+  uint32 limit = 2;
+  optional string search = 3;
+}
+
+// One pricing range: quantities from..to (inclusive) cost unit_price a month
+// each. to_quantity is absent on an open-ended last range.
+message PriceTier {
+  uint32 from_quantity = 1;
+  optional uint32 to_quantity = 2;
+  // Decimal string, e.g. "200.00".
+  string monthly_unit_price = 3;
+}
 
 message ModuleRecord {
   string id = 1;
@@ -103,19 +127,39 @@ message ModuleRecord {
   string name_ar = 4;
   string description_en = 5;
   string description_ar = 6;
-  double purchasing_price = 7;
-  double selling_price = 8;
   google.protobuf.Timestamp created_at = 9;
   google.protobuf.Timestamp updated_at = 10;
+  repeated PriceTier price_tiers = 11;
+  reserved 7, 8;
+  reserved "purchasing_price", "selling_price";
 }
 
-message UpdateModulePriceRequest {
+message GetModuleRequest {
   string module_id = 1;
-  double selling_price = 2;
+}
+
+message UpdateModulePriceTiersRequest {
+  string module_id = 1;
+  repeated PriceTier price_tiers = 2;
 }
 
 message ListModulesResponse {
   repeated ModuleRecord modules = 1;
+  uint32 page = 2;
+  uint32 limit = 3;
+  uint32 total = 4;
+  uint32 total_pages = 5;
+}
+
+message GetDevicePricingRequest {}
+
+message DevicePricingRecord {
+  repeated PriceTier price_tiers = 1;
+  optional google.protobuf.Timestamp updated_at = 2;
+}
+
+message UpdateDevicePricingRequest {
+  repeated PriceTier price_tiers = 1;
 }
 
 message ListSubscriptionsRequest {
@@ -136,6 +180,18 @@ message SubscriptionModuleRecord {
   string status = 8;
   string description_en = 9;
   string description_ar = 10;
+  // Ceiling of client companies; absent while NASAM has not set it.
+  optional uint32 quantity = 11;
+}
+
+// A tenant's devices capacity line.
+message SubscriptionDevicesRecord {
+  string id = 1;
+  uint32 quantity = 2;
+  string price = 3;
+  google.protobuf.Timestamp start_date = 4;
+  google.protobuf.Timestamp end_date = 5;
+  string status = 6;
 }
 
 message SubscriptionRecord {
@@ -148,21 +204,33 @@ message SubscriptionRecord {
   string currency = 7;
   string status = 8;
   google.protobuf.Timestamp created_at = 9;
+  optional SubscriptionDevicesRecord devices = 10;
 }
 
-// Sells modules to a tenant: appends lines to its subscription.
+// One module sold to a tenant.
 message CreateSubscriptionModuleLine {
   string module_id = 1;
-  // Decimal string, e.g. "1500.00".
-  string price = 2;
-  // Both set, or both omitted for no term.
-  optional google.protobuf.Timestamp start_date = 3;
-  optional google.protobuf.Timestamp end_date = 4;
+  // Ceiling of client companies the tenant may sell the module to.
+  uint32 quantity = 2;
+  // Decimal string, the whole line as agreed, discounts included.
+  string total_price = 3;
+  google.protobuf.Timestamp start_date = 4;
+  uint32 duration_months = 5;
+}
+
+// Devices capacity sold to a tenant, for all of its clients.
+message CreateSubscriptionDevicesLine {
+  uint32 quantity = 1;
+  // Decimal string, the whole line as agreed, discounts included.
+  string total_price = 2;
+  google.protobuf.Timestamp start_date = 3;
+  uint32 duration_months = 4;
 }
 
 message CreateSubscriptionRequest {
   string tenant_id = 1;
   repeated CreateSubscriptionModuleLine modules = 2;
+  optional CreateSubscriptionDevicesLine devices = 3;
 }
 
 message ListSubscriptionsResponse {
@@ -170,6 +238,86 @@ message ListSubscriptionsResponse {
   uint32 current_page = 2;
   uint32 total_pages = 3;
   uint32 total_count = 4;
+}
+
+message GetSubscriptionRequest {
+  string tenant_id = 1;
+}
+
+enum SubscriptionLineType {
+  SUBSCRIPTION_LINE_TYPE_UNSPECIFIED = 0;
+  SUBSCRIPTION_LINE_TYPE_MODULE = 1;
+  SUBSCRIPTION_LINE_TYPE_DEVICES = 2;
+}
+
+// One line of a tenant's subscription, with live usage while it is current.
+message SubscriptionLineDetails {
+  string id = 1;
+  SubscriptionLineType type = 2;
+  // Set on MODULE lines.
+  optional string module_id = 3;
+  optional string name_en = 4;
+  optional string name_ar = 5;
+  optional uint32 quantity = 6;
+  // Decimal string: total_price spread over quantity x duration_months.
+  optional string unit_price = 7;
+  optional uint32 duration_months = 8;
+  // Decimal string: what the line was sold for.
+  optional string total_price = 9;
+  optional google.protobuf.Timestamp start_date = 10;
+  optional google.protobuf.Timestamp end_date = 11;
+  // ACTIVE, INACTIVE, EXPIRED or SCHEDULED.
+  string status = 12;
+  // Set on current lines only.
+  optional uint32 used = 13;
+  // What is left of quantity; 0 once it is all used (overage says by how much).
+  optional int32 remaining = 14;
+  optional uint32 overage = 15;
+}
+
+message SubscriptionDetails {
+  string id = 1;
+  string organization_id = 2;
+  string organization_name_en = 3;
+  string organization_name_ar = 4;
+  repeated SubscriptionLineDetails current = 5;
+  repeated SubscriptionLineDetails history = 6;
+  // Sum of the current lines' total_price.
+  string total_price = 7;
+  string currency = 8;
+}
+
+message SetSubscriptionLineStatusRequest {
+  string tenant_id = 1;
+  string line_id = 2;
+  SubscriptionLineType type = 3;
+  // ACTIVE or INACTIVE.
+  string status = 4;
+}
+
+message GetUsageReportRequest {
+  string tenant_id = 1;
+  uint32 year = 2;
+  uint32 month = 3;
+}
+
+message UsageReportRow {
+  SubscriptionLineType type = 1;
+  optional string module_id = 2;
+  optional string name_en = 3;
+  optional string name_ar = 4;
+  uint32 paid = 5;
+  uint32 actual = 6;
+  int32 remaining = 7;
+  // Absent when paid is zero.
+  optional double usage_percent = 8;
+}
+
+message UsageReport {
+  string tenant_id = 1;
+  uint32 year = 2;
+  uint32 month = 3;
+  repeated UsageReportRow rows = 4;
 }
 
 // A tenant's own administrator: the ADMIN user inside that tenant's schema.
