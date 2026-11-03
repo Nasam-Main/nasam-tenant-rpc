@@ -22,6 +22,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx buf lint
+      - name: Check code generation drift
+        run: |
+          npm run generate
+          git diff --exit-code src/gen
       - name: Check protobuf backward compatibility
         run: |
           PREV_TAG=$(git tag -l 'v*' --sort=-v:refname | grep -v "^${GITHUB_REF_NAME}$" | head -n 1)

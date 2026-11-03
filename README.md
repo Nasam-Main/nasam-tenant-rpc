@@ -75,9 +75,8 @@ client.close();
 ## Release
 
 Update the version, run `npm test`, then create and push the matching
-`v<version>` tag. Git installations run the package's `prepare` script, which
-generates the ts-proto sources in `src/gen` from `proto/` and compiles `dist`
-for consumers; neither `src/gen` nor `dist` is ever committed.
+`v<version>` tag. Git installations run the package's `prepare` script, so
+`dist` is generated for consumers but is never committed.
 
 This repository is public for dependency distribution. It must never contain
 credentials, infrastructure details, customer data, or server implementation.

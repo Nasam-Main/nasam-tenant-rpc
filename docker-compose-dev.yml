@@ -1,0 +1,12 @@
+services:
+  nasam-tenant-rpc:
+    image: ghcr.io/nasam-main/nasam-tenant-rpc:dev
+    container_name: nasam-tenant-rpc-dev
+    restart: unless-stopped
+    networks:
+      - nasam-dev-network
+
+networks:
+  nasam-dev-network:
+    external: true
+    name: nasam-v2-api_nasam-dev-network

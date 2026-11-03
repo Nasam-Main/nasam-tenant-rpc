@@ -19,7 +19,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "npm run generate && tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
     "generate": "buf generate",
     "test": "npm run build && node --test test/*.test.cjs",
     "prepare": "npm run build",
