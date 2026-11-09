@@ -249,6 +249,7 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
           status: "ACTIVE", used: 120, remaining: 0, overage: 20,
         }],
         history: [],
+        future: [],
         totalPrice: "24000.00",
         currency: "SAR",
       });
@@ -256,6 +257,38 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
     setSubscriptionLineStatus: (call, callback) => {
       receivedAdminRequests.push(["setSubscriptionLineStatus", call.request]);
       callback(toTenantRpcServiceError("SUBSCRIPTION_LINE_EXPIRED"), null);
+    },
+    deleteFutureSubscriptionLine: (call, callback) => {
+      receivedAdminRequests.push(["deleteFutureSubscriptionLine", call.request]);
+      callback(toTenantRpcServiceError("FUTURE_EXTENSION_STARTED"), null);
+    },
+    updateFutureSubscriptionLine: (call, callback) => {
+      receivedAdminRequests.push(["updateFutureSubscriptionLine", call.request]);
+      callback(toTenantRpcServiceError("FUTURE_SUBSCRIPTION_NOT_EDITABLE"), null);
+    },
+    extendSubscriptionLine: (call, callback) => {
+      receivedAdminRequests.push(["extendSubscriptionLine", call.request]);
+      if (call.request.lineId !== "55555555-5555-4555-8555-555555555555") {
+        callback(toTenantRpcServiceError("FUTURE_SUBSCRIPTION_EXISTS"), null);
+        return;
+      }
+      callback(null, {
+        id: "44444444-4444-4444-8444-444444444444",
+        organizationId: call.request.tenantId,
+        organizationNameEn: "Saudi Tracking",
+        organizationNameAr: "التتبع السعودي",
+        current: [],
+        history: [],
+        future: [{
+          id: "88888888-8888-4888-8888-888888888888", type: "SUBSCRIPTION_LINE_TYPE_MODULE",
+          moduleId: "66666666-6666-4666-8666-666666666666", nameEn: "Fleet", nameAr: "الأسطول",
+          quantity: call.request.quantity, unitPrice: "20.00", durationMonths: call.request.durationMonths,
+          totalPrice: call.request.totalPrice, startDate: call.request.startDate,
+          endDate: new Date("2028-09-30T20:59:59.999Z"), status: "SCHEDULED",
+        }],
+        totalPrice: "0.00",
+        currency: "SAR",
+      });
     },
     getUsageReport: (call, callback) => {
       callback(null, {
@@ -467,6 +500,42 @@ test("createTenantControlGrpcClient against real in-test grpc Server", async (t)
     (err) => err.details.status === 409 && err.details.messageKey === "SUBSCRIPTION_LINE_EXPIRED",
   );
   assert.equal(receivedAdminRequests.at(-1)[1].type, "SUBSCRIPTION_LINE_TYPE_MODULE");
+  assert.deepEqual(details.future, []);
+
+  const extended = await client.extendSubscriptionLine({
+    tenantId, lineId: details.current[0].id, type: "MODULE", ...term, startDate: "2027-09-30T21:00:00.000Z",
+  }, "token-subscriptions");
+  const sentExtension = receivedAdminRequests.at(-1);
+  assert.equal(sentExtension[0], "extendSubscriptionLine");
+  assert.ok(sentExtension[1].startDate instanceof Date);
+  assert.equal(sentExtension[1].durationMonths, 12);
+  assert.equal(sentExtension[1].type, "SUBSCRIPTION_LINE_TYPE_MODULE");
+  assert.equal(extended.future[0].status, "SCHEDULED");
+  assert.equal(extended.future[0].startDate, "2027-09-30T21:00:00.000Z");
+  await assert.rejects(
+    () => client.extendSubscriptionLine({ tenantId, lineId: moduleId, type: "MODULE", ...term }, "t"),
+    (err) => err.details.status === 409 && err.details.messageKey === "FUTURE_SUBSCRIPTION_EXISTS",
+  );
+  await assert.rejects(
+    () => client.extendSubscriptionLine({ tenantId, lineId: details.current[0].id, type: "MODULE", ...term, durationMonths: 0 }, "t"),
+    (err) => err.details.messageKey === "INVALID_TENANT_RPC_INPUT",
+  );
+  await assert.rejects(
+    () => client.updateFutureSubscriptionLine({
+      tenantId, lineId: extended.future[0].id, type: "DEVICES", ...term, startDate: "2027-10-31T21:00:00.000Z",
+    }, "token-subscriptions"),
+    (err) => err.details.status === 409 && err.details.messageKey === "FUTURE_SUBSCRIPTION_NOT_EDITABLE",
+  );
+  const sentUpdate = receivedAdminRequests.at(-1);
+  await assert.rejects(
+    () => client.deleteFutureSubscriptionLine({ tenantId, lineId: extended.future[0].id, type: "MODULE" }, "token-subscriptions"),
+    (err) => err.details.status === 409 && err.details.messageKey === "FUTURE_EXTENSION_STARTED",
+  );
+  assert.equal(receivedAdminRequests.at(-1)[0], "deleteFutureSubscriptionLine");
+  assert.equal(receivedAdminRequests.at(-1)[1].type, "SUBSCRIPTION_LINE_TYPE_MODULE");
+  assert.equal(sentUpdate[0], "updateFutureSubscriptionLine");
+  assert.equal(sentUpdate[1].type, "SUBSCRIPTION_LINE_TYPE_DEVICES");
+  assert.ok(sentUpdate[1].startDate instanceof Date);
   const report = await client.getUsageReport({ tenantId, year: 2026, month: 10 }, "token-reports");
   assert.equal(report.rows[0].type, "DEVICES");
   assert.equal(report.rows[0].usagePercent, null);

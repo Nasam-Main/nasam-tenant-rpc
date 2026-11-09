@@ -240,6 +240,8 @@ export const subscriptionDetailsSchema = z.object({
   organizationNameAr: z.string(),
   current: z.array(subscriptionLineDetailsSchema),
   history: z.array(subscriptionLineDetailsSchema),
+  // Absent from a server older than 0.10.0.
+  future: z.array(subscriptionLineDetailsSchema).default([]),
   totalPrice: z.string(),
   currency: z.string(),
 });
@@ -249,6 +251,21 @@ export const subscriptionLineStatusInputSchema = z.object({
   lineId: uuid,
   type: subscriptionLineTypeSchema,
   status: z.enum(["ACTIVE", "INACTIVE"]),
+});
+// The next term of a current line, with the same figures as a sale.
+export const subscriptionExtendLineInputSchema = z.object({
+  tenantId: uuid,
+  lineId: uuid,
+  type: subscriptionLineTypeSchema,
+  ...capacityTerm,
+});
+// A future line's new figures, the same as it was sold with.
+export const subscriptionUpdateFutureLineInputSchema = subscriptionExtendLineInputSchema;
+// The future line to cancel.
+export const subscriptionDeleteFutureLineInputSchema = z.object({
+  tenantId: uuid,
+  lineId: uuid,
+  type: subscriptionLineTypeSchema,
 });
 
 export const usageReportInputSchema = z.object({
@@ -375,5 +392,8 @@ export type SubscriptionLineDetailsResult = z.infer<typeof subscriptionLineDetai
 export type SubscriptionDetailsResult = z.infer<typeof subscriptionDetailsSchema>;
 export type SubscriptionGetInput = z.infer<typeof subscriptionGetInputSchema>;
 export type SubscriptionLineStatusInput = z.infer<typeof subscriptionLineStatusInputSchema>;
+export type SubscriptionExtendLineInput = z.infer<typeof subscriptionExtendLineInputSchema>;
+export type SubscriptionUpdateFutureLineInput = z.infer<typeof subscriptionUpdateFutureLineInputSchema>;
+export type SubscriptionDeleteFutureLineInput = z.infer<typeof subscriptionDeleteFutureLineInputSchema>;
 export type UsageReportInput = z.infer<typeof usageReportInputSchema>;
 export type UsageReportResult = z.infer<typeof usageReportSchema>;

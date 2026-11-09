@@ -28,6 +28,16 @@ service TenantControl {
   rpc GetSubscription(GetSubscriptionRequest) returns (SubscriptionDetails);
   // Activates or deactivates one line. Its dates never change.
   rpc SetSubscriptionLineStatus(SetSubscriptionLineStatusRequest) returns (SubscriptionDetails);
+  // Sells a line's next term ahead of time: a new line for the same module
+  // (or devices) that starts after the current one ends and takes over on its
+  // own. At most one such future line per module, and one for devices.
+  rpc ExtendSubscriptionLine(ExtendSubscriptionLineRequest) returns (SubscriptionDetails);
+  // Changes a future line sold by ExtendSubscriptionLine, in place, until it
+  // starts. The current line is left as it is.
+  rpc UpdateFutureSubscriptionLine(UpdateFutureSubscriptionLineRequest) returns (SubscriptionDetails);
+  // Cancels a future line sold by ExtendSubscriptionLine before it starts.
+  // The current line and the history are left as they are.
+  rpc DeleteFutureSubscriptionLine(DeleteFutureSubscriptionLineRequest) returns (SubscriptionDetails);
   rpc GetUsageReport(GetUsageReportRequest) returns (UsageReport);
   rpc ListAccountAdmins(ListAccountAdminsRequest) returns (ListAccountAdminsResponse);
   rpc GetAccountAdmin(GetAccountAdminRequest) returns (AccountAdminRecord);
@@ -285,6 +295,8 @@ message SubscriptionDetails {
   // Sum of the current lines' total_price.
   string total_price = 7;
   string currency = 8;
+  // Lines sold ahead of time that have not started yet.
+  repeated SubscriptionLineDetails future = 9;
 }
 
 message SetSubscriptionLineStatusRequest {
@@ -293,6 +305,41 @@ message SetSubscriptionLineStatusRequest {
   SubscriptionLineType type = 3;
   // ACTIVE or INACTIVE.
   string status = 4;
+}
+
+// The next term of one current line, sold like a new line.
+message ExtendSubscriptionLineRequest {
+  string tenant_id = 1;
+  // The current line being extended.
+  string line_id = 2;
+  uint32 quantity = 3;
+  // Decimal string, the whole line as agreed, discounts included.
+  string total_price = 4;
+  // After the current line's end date.
+  google.protobuf.Timestamp start_date = 5;
+  uint32 duration_months = 6;
+  SubscriptionLineType type = 7;
+}
+
+// The future line to cancel.
+message DeleteFutureSubscriptionLineRequest {
+  string tenant_id = 1;
+  string line_id = 2;
+  SubscriptionLineType type = 3;
+}
+
+// A future line's new figures; the line keeps its id, module and status.
+message UpdateFutureSubscriptionLineRequest {
+  string tenant_id = 1;
+  // The future line being changed.
+  string line_id = 2;
+  uint32 quantity = 3;
+  // Decimal string, the whole line as agreed, discounts included.
+  string total_price = 4;
+  // After the line it follows ends, and after today.
+  google.protobuf.Timestamp start_date = 5;
+  uint32 duration_months = 6;
+  SubscriptionLineType type = 7;
 }
 
 message GetUsageReportRequest {

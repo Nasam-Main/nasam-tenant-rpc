@@ -5,6 +5,7 @@ const {
   provisioningStatusSchema,
   tenantCreateInputSchema,
   subscriptionCreateInputSchema,
+  subscriptionExtendLineInputSchema,
   moduleUpdatePriceTiersInputSchema,
   priceTierGaps,
 } = require("../dist");
@@ -98,6 +99,19 @@ test("a capacity line needs a quantity, a price, a start and a duration", () => 
   assert.equal(parse({ modules: [{ moduleId, ...term, durationMonths: 0 }] }), false);
   const { startDate, ...undated } = term;
   assert.equal(parse({ devices: undated }), false);
+});
+
+test("an extension names the line and carries the same figures as a sale", () => {
+  const lineId = "55555555-5555-4555-8555-555555555555";
+  const term = { quantity: 100, totalPrice: "12600.00", startDate: "2027-01-01T00:00:00.000Z", durationMonths: 12 };
+  const parse = (input) => subscriptionExtendLineInputSchema.safeParse({ tenantId, lineId, type: "MODULE", ...term, ...input }).success;
+  assert.equal(parse({}), true);
+  assert.equal(parse({ type: "DEVICES" }), true);
+  assert.equal(parse({ type: undefined }), false);
+  assert.equal(parse({ lineId: "not-a-uuid" }), false);
+  assert.equal(parse({ quantity: 0 }), false);
+  assert.equal(parse({ durationMonths: 0 }), false);
+  assert.equal(parse({ startDate: undefined }), false);
 });
 
 test("pricing ranges may not overlap, run backwards or leave an open range before the last", () => {

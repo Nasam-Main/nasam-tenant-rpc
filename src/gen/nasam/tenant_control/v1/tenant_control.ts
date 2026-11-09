@@ -396,6 +396,8 @@ export interface SubscriptionDetails {
   /** Sum of the current lines' total_price. */
   totalPrice: string;
   currency: string;
+  /** Lines sold ahead of time that have not started yet. */
+  future: SubscriptionLineDetails[];
 }
 
 export interface SetSubscriptionLineStatusRequest {
@@ -404,6 +406,41 @@ export interface SetSubscriptionLineStatusRequest {
   type: SubscriptionLineType;
   /** ACTIVE or INACTIVE. */
   status: string;
+}
+
+/** The next term of one current line, sold like a new line. */
+export interface ExtendSubscriptionLineRequest {
+  tenantId: string;
+  /** The current line being extended. */
+  lineId: string;
+  quantity: number;
+  /** Decimal string, the whole line as agreed, discounts included. */
+  totalPrice: string;
+  /** After the current line's end date. */
+  startDate?: Date | undefined;
+  durationMonths: number;
+  type: SubscriptionLineType;
+}
+
+/** The future line to cancel. */
+export interface DeleteFutureSubscriptionLineRequest {
+  tenantId: string;
+  lineId: string;
+  type: SubscriptionLineType;
+}
+
+/** A future line's new figures; the line keeps its id, module and status. */
+export interface UpdateFutureSubscriptionLineRequest {
+  tenantId: string;
+  /** The future line being changed. */
+  lineId: string;
+  quantity: number;
+  /** Decimal string, the whole line as agreed, discounts included. */
+  totalPrice: string;
+  /** After the line it follows ends, and after today. */
+  startDate?: Date | undefined;
+  durationMonths: number;
+  type: SubscriptionLineType;
 }
 
 export interface GetUsageReportRequest {
@@ -4460,6 +4497,7 @@ function createBaseSubscriptionDetails(): SubscriptionDetails {
     history: [],
     totalPrice: "",
     currency: "",
+    future: [],
   };
 }
 
@@ -4488,6 +4526,9 @@ export const SubscriptionDetails: MessageFns<SubscriptionDetails> = {
     }
     if (message.currency !== "") {
       writer.uint32(66).string(message.currency);
+    }
+    for (const v of message.future) {
+      SubscriptionLineDetails.encode(v!, writer.uint32(74).fork()).join();
     }
     return writer;
   },
@@ -4569,6 +4610,14 @@ export const SubscriptionDetails: MessageFns<SubscriptionDetails> = {
             message.currency = reader.string();
             continue;
           }
+          case 9: {
+            if (tag !== 74) {
+              break;
+            }
+
+            message.future.push(SubscriptionLineDetails.decode(reader, reader.uint32()));
+            continue;
+          }
         }
         if ((tag & 7) === 4 || tag === 0) {
           break;
@@ -4611,6 +4660,9 @@ export const SubscriptionDetails: MessageFns<SubscriptionDetails> = {
         ? globalThis.String(object.total_price)
         : "",
       currency: isSet(object.currency) ? globalThis.String(object.currency) : "",
+      future: globalThis.Array.isArray(object?.future)
+        ? object.future.map((e: any) => SubscriptionLineDetails.fromJSON(e))
+        : [],
     };
   },
 
@@ -4640,6 +4692,9 @@ export const SubscriptionDetails: MessageFns<SubscriptionDetails> = {
     if (message.currency !== "") {
       obj.currency = message.currency;
     }
+    if (message.future?.length) {
+      obj.future = message.future.map((e) => SubscriptionLineDetails.toJSON(e));
+    }
     return obj;
   },
 
@@ -4656,6 +4711,7 @@ export const SubscriptionDetails: MessageFns<SubscriptionDetails> = {
     message.history = object.history?.map((e) => SubscriptionLineDetails.fromPartial(e)) || [];
     message.totalPrice = object.totalPrice ?? "";
     message.currency = object.currency ?? "";
+    message.future = object.future?.map((e) => SubscriptionLineDetails.fromPartial(e)) || [];
     return message;
   },
 };
@@ -4787,6 +4843,517 @@ export const SetSubscriptionLineStatusRequest: MessageFns<SetSubscriptionLineSta
     message.lineId = object.lineId ?? "";
     message.type = object.type ?? SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED;
     message.status = object.status ?? "";
+    return message;
+  },
+};
+
+function createBaseExtendSubscriptionLineRequest(): ExtendSubscriptionLineRequest {
+  return {
+    tenantId: "",
+    lineId: "",
+    quantity: 0,
+    totalPrice: "",
+    startDate: undefined,
+    durationMonths: 0,
+    type: SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED,
+  };
+}
+
+export const ExtendSubscriptionLineRequest: MessageFns<ExtendSubscriptionLineRequest> = {
+  encode(message: ExtendSubscriptionLineRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.tenantId !== "") {
+      writer.uint32(10).string(message.tenantId);
+    }
+    if (message.lineId !== "") {
+      writer.uint32(18).string(message.lineId);
+    }
+    if (message.quantity !== 0) {
+      writer.uint32(24).uint32(message.quantity);
+    }
+    if (message.totalPrice !== "") {
+      writer.uint32(34).string(message.totalPrice);
+    }
+    if (message.startDate !== undefined) {
+      Timestamp.encode(toTimestamp(message.startDate), writer.uint32(42).fork()).join();
+    }
+    if (message.durationMonths !== 0) {
+      writer.uint32(48).uint32(message.durationMonths);
+    }
+    if (message.type !== SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED) {
+      writer.uint32(56).int32(subscriptionLineTypeToNumber(message.type));
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ExtendSubscriptionLineRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseExtendSubscriptionLineRequest();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.tenantId = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.lineId = reader.string();
+            continue;
+          }
+          case 3: {
+            if (tag !== 24) {
+              break;
+            }
+
+            message.quantity = reader.uint32();
+            continue;
+          }
+          case 4: {
+            if (tag !== 34) {
+              break;
+            }
+
+            message.totalPrice = reader.string();
+            continue;
+          }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.startDate = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+            continue;
+          }
+          case 6: {
+            if (tag !== 48) {
+              break;
+            }
+
+            message.durationMonths = reader.uint32();
+            continue;
+          }
+          case 7: {
+            if (tag !== 56) {
+              break;
+            }
+
+            message.type = subscriptionLineTypeFromJSON(reader.int32());
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): ExtendSubscriptionLineRequest {
+    return {
+      tenantId: isSet(object.tenantId)
+        ? globalThis.String(object.tenantId)
+        : isSet(object.tenant_id)
+        ? globalThis.String(object.tenant_id)
+        : "",
+      lineId: isSet(object.lineId)
+        ? globalThis.String(object.lineId)
+        : isSet(object.line_id)
+        ? globalThis.String(object.line_id)
+        : "",
+      quantity: isSet(object.quantity) ? globalThis.Number(object.quantity) : 0,
+      totalPrice: isSet(object.totalPrice)
+        ? globalThis.String(object.totalPrice)
+        : isSet(object.total_price)
+        ? globalThis.String(object.total_price)
+        : "",
+      startDate: isSet(object.startDate)
+        ? fromJsonTimestamp(object.startDate)
+        : isSet(object.start_date)
+        ? fromJsonTimestamp(object.start_date)
+        : undefined,
+      durationMonths: isSet(object.durationMonths)
+        ? globalThis.Number(object.durationMonths)
+        : isSet(object.duration_months)
+        ? globalThis.Number(object.duration_months)
+        : 0,
+      type: isSet(object.type)
+        ? subscriptionLineTypeFromJSON(object.type)
+        : SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED,
+    };
+  },
+
+  toJSON(message: ExtendSubscriptionLineRequest): unknown {
+    const obj: any = {};
+    if (message.tenantId !== "") {
+      obj.tenantId = message.tenantId;
+    }
+    if (message.lineId !== "") {
+      obj.lineId = message.lineId;
+    }
+    if (message.quantity !== 0) {
+      obj.quantity = Math.round(message.quantity);
+    }
+    if (message.totalPrice !== "") {
+      obj.totalPrice = message.totalPrice;
+    }
+    if (message.startDate !== undefined) {
+      obj.startDate = message.startDate.toISOString();
+    }
+    if (message.durationMonths !== 0) {
+      obj.durationMonths = Math.round(message.durationMonths);
+    }
+    if (message.type !== SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED) {
+      obj.type = subscriptionLineTypeToJSON(message.type);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ExtendSubscriptionLineRequest>, I>>(base?: I): ExtendSubscriptionLineRequest {
+    return ExtendSubscriptionLineRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ExtendSubscriptionLineRequest>, I>>(
+    object: I,
+  ): ExtendSubscriptionLineRequest {
+    const message = createBaseExtendSubscriptionLineRequest();
+    message.tenantId = object.tenantId ?? "";
+    message.lineId = object.lineId ?? "";
+    message.quantity = object.quantity ?? 0;
+    message.totalPrice = object.totalPrice ?? "";
+    message.startDate = object.startDate ?? undefined;
+    message.durationMonths = object.durationMonths ?? 0;
+    message.type = object.type ?? SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED;
+    return message;
+  },
+};
+
+function createBaseDeleteFutureSubscriptionLineRequest(): DeleteFutureSubscriptionLineRequest {
+  return { tenantId: "", lineId: "", type: SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED };
+}
+
+export const DeleteFutureSubscriptionLineRequest: MessageFns<DeleteFutureSubscriptionLineRequest> = {
+  encode(message: DeleteFutureSubscriptionLineRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.tenantId !== "") {
+      writer.uint32(10).string(message.tenantId);
+    }
+    if (message.lineId !== "") {
+      writer.uint32(18).string(message.lineId);
+    }
+    if (message.type !== SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED) {
+      writer.uint32(24).int32(subscriptionLineTypeToNumber(message.type));
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeleteFutureSubscriptionLineRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseDeleteFutureSubscriptionLineRequest();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.tenantId = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.lineId = reader.string();
+            continue;
+          }
+          case 3: {
+            if (tag !== 24) {
+              break;
+            }
+
+            message.type = subscriptionLineTypeFromJSON(reader.int32());
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): DeleteFutureSubscriptionLineRequest {
+    return {
+      tenantId: isSet(object.tenantId)
+        ? globalThis.String(object.tenantId)
+        : isSet(object.tenant_id)
+        ? globalThis.String(object.tenant_id)
+        : "",
+      lineId: isSet(object.lineId)
+        ? globalThis.String(object.lineId)
+        : isSet(object.line_id)
+        ? globalThis.String(object.line_id)
+        : "",
+      type: isSet(object.type)
+        ? subscriptionLineTypeFromJSON(object.type)
+        : SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED,
+    };
+  },
+
+  toJSON(message: DeleteFutureSubscriptionLineRequest): unknown {
+    const obj: any = {};
+    if (message.tenantId !== "") {
+      obj.tenantId = message.tenantId;
+    }
+    if (message.lineId !== "") {
+      obj.lineId = message.lineId;
+    }
+    if (message.type !== SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED) {
+      obj.type = subscriptionLineTypeToJSON(message.type);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<DeleteFutureSubscriptionLineRequest>, I>>(
+    base?: I,
+  ): DeleteFutureSubscriptionLineRequest {
+    return DeleteFutureSubscriptionLineRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<DeleteFutureSubscriptionLineRequest>, I>>(
+    object: I,
+  ): DeleteFutureSubscriptionLineRequest {
+    const message = createBaseDeleteFutureSubscriptionLineRequest();
+    message.tenantId = object.tenantId ?? "";
+    message.lineId = object.lineId ?? "";
+    message.type = object.type ?? SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED;
+    return message;
+  },
+};
+
+function createBaseUpdateFutureSubscriptionLineRequest(): UpdateFutureSubscriptionLineRequest {
+  return {
+    tenantId: "",
+    lineId: "",
+    quantity: 0,
+    totalPrice: "",
+    startDate: undefined,
+    durationMonths: 0,
+    type: SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED,
+  };
+}
+
+export const UpdateFutureSubscriptionLineRequest: MessageFns<UpdateFutureSubscriptionLineRequest> = {
+  encode(message: UpdateFutureSubscriptionLineRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.tenantId !== "") {
+      writer.uint32(10).string(message.tenantId);
+    }
+    if (message.lineId !== "") {
+      writer.uint32(18).string(message.lineId);
+    }
+    if (message.quantity !== 0) {
+      writer.uint32(24).uint32(message.quantity);
+    }
+    if (message.totalPrice !== "") {
+      writer.uint32(34).string(message.totalPrice);
+    }
+    if (message.startDate !== undefined) {
+      Timestamp.encode(toTimestamp(message.startDate), writer.uint32(42).fork()).join();
+    }
+    if (message.durationMonths !== 0) {
+      writer.uint32(48).uint32(message.durationMonths);
+    }
+    if (message.type !== SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED) {
+      writer.uint32(56).int32(subscriptionLineTypeToNumber(message.type));
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): UpdateFutureSubscriptionLineRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseUpdateFutureSubscriptionLineRequest();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.tenantId = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.lineId = reader.string();
+            continue;
+          }
+          case 3: {
+            if (tag !== 24) {
+              break;
+            }
+
+            message.quantity = reader.uint32();
+            continue;
+          }
+          case 4: {
+            if (tag !== 34) {
+              break;
+            }
+
+            message.totalPrice = reader.string();
+            continue;
+          }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.startDate = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+            continue;
+          }
+          case 6: {
+            if (tag !== 48) {
+              break;
+            }
+
+            message.durationMonths = reader.uint32();
+            continue;
+          }
+          case 7: {
+            if (tag !== 56) {
+              break;
+            }
+
+            message.type = subscriptionLineTypeFromJSON(reader.int32());
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): UpdateFutureSubscriptionLineRequest {
+    return {
+      tenantId: isSet(object.tenantId)
+        ? globalThis.String(object.tenantId)
+        : isSet(object.tenant_id)
+        ? globalThis.String(object.tenant_id)
+        : "",
+      lineId: isSet(object.lineId)
+        ? globalThis.String(object.lineId)
+        : isSet(object.line_id)
+        ? globalThis.String(object.line_id)
+        : "",
+      quantity: isSet(object.quantity) ? globalThis.Number(object.quantity) : 0,
+      totalPrice: isSet(object.totalPrice)
+        ? globalThis.String(object.totalPrice)
+        : isSet(object.total_price)
+        ? globalThis.String(object.total_price)
+        : "",
+      startDate: isSet(object.startDate)
+        ? fromJsonTimestamp(object.startDate)
+        : isSet(object.start_date)
+        ? fromJsonTimestamp(object.start_date)
+        : undefined,
+      durationMonths: isSet(object.durationMonths)
+        ? globalThis.Number(object.durationMonths)
+        : isSet(object.duration_months)
+        ? globalThis.Number(object.duration_months)
+        : 0,
+      type: isSet(object.type)
+        ? subscriptionLineTypeFromJSON(object.type)
+        : SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED,
+    };
+  },
+
+  toJSON(message: UpdateFutureSubscriptionLineRequest): unknown {
+    const obj: any = {};
+    if (message.tenantId !== "") {
+      obj.tenantId = message.tenantId;
+    }
+    if (message.lineId !== "") {
+      obj.lineId = message.lineId;
+    }
+    if (message.quantity !== 0) {
+      obj.quantity = Math.round(message.quantity);
+    }
+    if (message.totalPrice !== "") {
+      obj.totalPrice = message.totalPrice;
+    }
+    if (message.startDate !== undefined) {
+      obj.startDate = message.startDate.toISOString();
+    }
+    if (message.durationMonths !== 0) {
+      obj.durationMonths = Math.round(message.durationMonths);
+    }
+    if (message.type !== SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED) {
+      obj.type = subscriptionLineTypeToJSON(message.type);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<UpdateFutureSubscriptionLineRequest>, I>>(
+    base?: I,
+  ): UpdateFutureSubscriptionLineRequest {
+    return UpdateFutureSubscriptionLineRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<UpdateFutureSubscriptionLineRequest>, I>>(
+    object: I,
+  ): UpdateFutureSubscriptionLineRequest {
+    const message = createBaseUpdateFutureSubscriptionLineRequest();
+    message.tenantId = object.tenantId ?? "";
+    message.lineId = object.lineId ?? "";
+    message.quantity = object.quantity ?? 0;
+    message.totalPrice = object.totalPrice ?? "";
+    message.startDate = object.startDate ?? undefined;
+    message.durationMonths = object.durationMonths ?? 0;
+    message.type = object.type ?? SubscriptionLineType.SUBSCRIPTION_LINE_TYPE_UNSPECIFIED;
     return message;
   },
 };
@@ -6654,6 +7221,51 @@ export const TenantControlService = {
     responseSerialize: (value: SubscriptionDetails): Buffer => Buffer.from(SubscriptionDetails.encode(value).finish()),
     responseDeserialize: (value: Buffer): SubscriptionDetails => SubscriptionDetails.decode(value),
   },
+  /**
+   * Sells a line's next term ahead of time: a new line for the same module
+   * (or devices) that starts after the current one ends and takes over on its
+   * own. At most one such future line per module, and one for devices.
+   */
+  extendSubscriptionLine: {
+    path: "/nasam.tenant_control.v1.TenantControl/ExtendSubscriptionLine" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: ExtendSubscriptionLineRequest): Buffer =>
+      Buffer.from(ExtendSubscriptionLineRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): ExtendSubscriptionLineRequest => ExtendSubscriptionLineRequest.decode(value),
+    responseSerialize: (value: SubscriptionDetails): Buffer => Buffer.from(SubscriptionDetails.encode(value).finish()),
+    responseDeserialize: (value: Buffer): SubscriptionDetails => SubscriptionDetails.decode(value),
+  },
+  /**
+   * Changes a future line sold by ExtendSubscriptionLine, in place, until it
+   * starts. The current line is left as it is.
+   */
+  updateFutureSubscriptionLine: {
+    path: "/nasam.tenant_control.v1.TenantControl/UpdateFutureSubscriptionLine" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: UpdateFutureSubscriptionLineRequest): Buffer =>
+      Buffer.from(UpdateFutureSubscriptionLineRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): UpdateFutureSubscriptionLineRequest =>
+      UpdateFutureSubscriptionLineRequest.decode(value),
+    responseSerialize: (value: SubscriptionDetails): Buffer => Buffer.from(SubscriptionDetails.encode(value).finish()),
+    responseDeserialize: (value: Buffer): SubscriptionDetails => SubscriptionDetails.decode(value),
+  },
+  /**
+   * Cancels a future line sold by ExtendSubscriptionLine before it starts.
+   * The current line and the history are left as they are.
+   */
+  deleteFutureSubscriptionLine: {
+    path: "/nasam.tenant_control.v1.TenantControl/DeleteFutureSubscriptionLine" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: DeleteFutureSubscriptionLineRequest): Buffer =>
+      Buffer.from(DeleteFutureSubscriptionLineRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): DeleteFutureSubscriptionLineRequest =>
+      DeleteFutureSubscriptionLineRequest.decode(value),
+    responseSerialize: (value: SubscriptionDetails): Buffer => Buffer.from(SubscriptionDetails.encode(value).finish()),
+    responseDeserialize: (value: Buffer): SubscriptionDetails => SubscriptionDetails.decode(value),
+  },
   getUsageReport: {
     path: "/nasam.tenant_control.v1.TenantControl/GetUsageReport" as const,
     requestStream: false as const,
@@ -6756,6 +7368,22 @@ export interface TenantControlServer extends UntypedServiceImplementation {
   getSubscription: handleUnaryCall<GetSubscriptionRequest, SubscriptionDetails>;
   /** Activates or deactivates one line. Its dates never change. */
   setSubscriptionLineStatus: handleUnaryCall<SetSubscriptionLineStatusRequest, SubscriptionDetails>;
+  /**
+   * Sells a line's next term ahead of time: a new line for the same module
+   * (or devices) that starts after the current one ends and takes over on its
+   * own. At most one such future line per module, and one for devices.
+   */
+  extendSubscriptionLine: handleUnaryCall<ExtendSubscriptionLineRequest, SubscriptionDetails>;
+  /**
+   * Changes a future line sold by ExtendSubscriptionLine, in place, until it
+   * starts. The current line is left as it is.
+   */
+  updateFutureSubscriptionLine: handleUnaryCall<UpdateFutureSubscriptionLineRequest, SubscriptionDetails>;
+  /**
+   * Cancels a future line sold by ExtendSubscriptionLine before it starts.
+   * The current line and the history are left as they are.
+   */
+  deleteFutureSubscriptionLine: handleUnaryCall<DeleteFutureSubscriptionLineRequest, SubscriptionDetails>;
   getUsageReport: handleUnaryCall<GetUsageReportRequest, UsageReport>;
   listAccountAdmins: handleUnaryCall<ListAccountAdminsRequest, ListAccountAdminsResponse>;
   getAccountAdmin: handleUnaryCall<GetAccountAdminRequest, AccountAdminRecord>;
@@ -7014,6 +7642,64 @@ export interface TenantControlClient extends Client {
   ): ClientUnaryCall;
   setSubscriptionLineStatus(
     request: SetSubscriptionLineStatusRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: SubscriptionDetails) => void,
+  ): ClientUnaryCall;
+  /**
+   * Sells a line's next term ahead of time: a new line for the same module
+   * (or devices) that starts after the current one ends and takes over on its
+   * own. At most one such future line per module, and one for devices.
+   */
+  extendSubscriptionLine(
+    request: ExtendSubscriptionLineRequest,
+    callback: (error: ServiceError | null, response: SubscriptionDetails) => void,
+  ): ClientUnaryCall;
+  extendSubscriptionLine(
+    request: ExtendSubscriptionLineRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: SubscriptionDetails) => void,
+  ): ClientUnaryCall;
+  extendSubscriptionLine(
+    request: ExtendSubscriptionLineRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: SubscriptionDetails) => void,
+  ): ClientUnaryCall;
+  /**
+   * Changes a future line sold by ExtendSubscriptionLine, in place, until it
+   * starts. The current line is left as it is.
+   */
+  updateFutureSubscriptionLine(
+    request: UpdateFutureSubscriptionLineRequest,
+    callback: (error: ServiceError | null, response: SubscriptionDetails) => void,
+  ): ClientUnaryCall;
+  updateFutureSubscriptionLine(
+    request: UpdateFutureSubscriptionLineRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: SubscriptionDetails) => void,
+  ): ClientUnaryCall;
+  updateFutureSubscriptionLine(
+    request: UpdateFutureSubscriptionLineRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: SubscriptionDetails) => void,
+  ): ClientUnaryCall;
+  /**
+   * Cancels a future line sold by ExtendSubscriptionLine before it starts.
+   * The current line and the history are left as they are.
+   */
+  deleteFutureSubscriptionLine(
+    request: DeleteFutureSubscriptionLineRequest,
+    callback: (error: ServiceError | null, response: SubscriptionDetails) => void,
+  ): ClientUnaryCall;
+  deleteFutureSubscriptionLine(
+    request: DeleteFutureSubscriptionLineRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: SubscriptionDetails) => void,
+  ): ClientUnaryCall;
+  deleteFutureSubscriptionLine(
+    request: DeleteFutureSubscriptionLineRequest,
     metadata: Metadata,
     options: Partial<CallOptions>,
     callback: (error: ServiceError | null, response: SubscriptionDetails) => void,

@@ -55,12 +55,18 @@ import {
   subscriptionDetailsSchema,
   subscriptionGetInputSchema,
   subscriptionLineStatusInputSchema,
+  subscriptionExtendLineInputSchema,
+  subscriptionUpdateFutureLineInputSchema,
+  subscriptionDeleteFutureLineInputSchema,
   usageReportInputSchema,
   usageReportSchema,
   type SubscriptionLineType,
   type SubscriptionDetailsResult,
   type SubscriptionGetInput,
   type SubscriptionLineStatusInput,
+  type SubscriptionExtendLineInput,
+  type SubscriptionUpdateFutureLineInput,
+  type SubscriptionDeleteFutureLineInput,
   type UsageReportInput,
   type UsageReportResult,
 } from "./schemas";
@@ -88,6 +94,9 @@ import {
   type SubscriptionDetails,
   type SubscriptionLineDetails,
   type SetSubscriptionLineStatusRequest,
+  type ExtendSubscriptionLineRequest,
+  type UpdateFutureSubscriptionLineRequest,
+  type DeleteFutureSubscriptionLineRequest,
   type GetUsageReportRequest,
   type UsageReport,
   SubscriptionLineType as ProtoSubscriptionLineType,
@@ -673,6 +682,7 @@ export function createTenantControlGrpcClient(
       organizationNameAr: details.organizationNameAr,
       current: details.current.map(toDomainLine),
       history: details.history.map(toDomainLine),
+      future: details.future.map(toDomainLine),
       totalPrice: details.totalPrice,
       currency: details.currency,
     });
@@ -704,6 +714,68 @@ export function createTenantControlGrpcClient(
     };
     return unary(
       client.setSubscriptionLineStatus as unknown as UnaryMethod<SetSubscriptionLineStatusRequest, SubscriptionDetails>,
+      request,
+      token,
+      toDomainSubscriptionDetails,
+    );
+  };
+
+  const extendSubscriptionLine = async (
+    input: SubscriptionExtendLineInput,
+    token: string,
+  ): Promise<SubscriptionDetailsResult> => {
+    const validated = parseInput<SubscriptionExtendLineInput>(subscriptionExtendLineInputSchema, input);
+    const request: ExtendSubscriptionLineRequest = {
+      tenantId: validated.tenantId,
+      lineId: validated.lineId,
+      quantity: validated.quantity,
+      totalPrice: validated.totalPrice,
+      startDate: new Date(validated.startDate),
+      durationMonths: validated.durationMonths,
+      type: LINE_TYPE_TO_PROTO[validated.type],
+    };
+    return unary(
+      client.extendSubscriptionLine as unknown as UnaryMethod<ExtendSubscriptionLineRequest, SubscriptionDetails>,
+      request,
+      token,
+      toDomainSubscriptionDetails,
+    );
+  };
+
+  const updateFutureSubscriptionLine = async (
+    input: SubscriptionUpdateFutureLineInput,
+    token: string,
+  ): Promise<SubscriptionDetailsResult> => {
+    const validated = parseInput<SubscriptionUpdateFutureLineInput>(subscriptionUpdateFutureLineInputSchema, input);
+    const request: UpdateFutureSubscriptionLineRequest = {
+      tenantId: validated.tenantId,
+      lineId: validated.lineId,
+      quantity: validated.quantity,
+      totalPrice: validated.totalPrice,
+      startDate: new Date(validated.startDate),
+      durationMonths: validated.durationMonths,
+      type: LINE_TYPE_TO_PROTO[validated.type],
+    };
+    return unary(
+      client.updateFutureSubscriptionLine as unknown as UnaryMethod<UpdateFutureSubscriptionLineRequest, SubscriptionDetails>,
+      request,
+      token,
+      toDomainSubscriptionDetails,
+    );
+  };
+
+  const deleteFutureSubscriptionLine = async (
+    input: SubscriptionDeleteFutureLineInput,
+    token: string,
+  ): Promise<SubscriptionDetailsResult> => {
+    const validated = parseInput<SubscriptionDeleteFutureLineInput>(subscriptionDeleteFutureLineInputSchema, input);
+    const request: DeleteFutureSubscriptionLineRequest = {
+      tenantId: validated.tenantId,
+      lineId: validated.lineId,
+      type: LINE_TYPE_TO_PROTO[validated.type],
+    };
+    return unary(
+      client.deleteFutureSubscriptionLine as unknown as UnaryMethod<DeleteFutureSubscriptionLineRequest, SubscriptionDetails>,
       request,
       token,
       toDomainSubscriptionDetails,
@@ -798,6 +870,9 @@ export function createTenantControlGrpcClient(
     createSubscription,
     getSubscription,
     setSubscriptionLineStatus,
+    extendSubscriptionLine,
+    updateFutureSubscriptionLine,
+    deleteFutureSubscriptionLine,
     getUsageReport,
     listAccountAdmins,
     getAccountAdmin,

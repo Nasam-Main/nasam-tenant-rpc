@@ -135,6 +135,46 @@ export const TENANT_RPC_ERROR_MAPPINGS: Record<string, TenantRpcMappingEntry> = 
     grpcName: "ALREADY_EXISTS",
     httpStatus: 409,
   },
+  // Only a live ACTIVE line with an end date can be extended.
+  SUBSCRIPTION_LINE_NOT_EXTENDABLE: {
+    grpcCode: status.FAILED_PRECONDITION,
+    grpcName: "FAILED_PRECONDITION",
+    httpStatus: 409,
+  },
+  EXTENSION_OVERLAPS_CURRENT_PERIOD: {
+    grpcCode: status.INVALID_ARGUMENT,
+    grpcName: "INVALID_ARGUMENT",
+    httpStatus: 400,
+  },
+  FUTURE_SUBSCRIPTION_EXISTS: {
+    grpcCode: status.ALREADY_EXISTS,
+    grpcName: "ALREADY_EXISTS",
+    httpStatus: 409,
+  },
+  // Only a future line sold ahead of time, before it starts, can be changed.
+  FUTURE_SUBSCRIPTION_NOT_EDITABLE: {
+    grpcCode: status.FAILED_PRECONDITION,
+    grpcName: "FAILED_PRECONDITION",
+    httpStatus: 409,
+  },
+  // A future line can be cancelled only before it starts.
+  FUTURE_EXTENSION_STARTED: {
+    grpcCode: status.FAILED_PRECONDITION,
+    grpcName: "FAILED_PRECONDITION",
+    httpStatus: 409,
+  },
+  // Cancelled already, or never there.
+  FUTURE_EXTENSION_NOT_AVAILABLE: {
+    grpcCode: status.NOT_FOUND,
+    grpcName: "NOT_FOUND",
+    httpStatus: 404,
+  },
+  // A future line must stay future: it starts after today.
+  FUTURE_START_NOT_AFTER_TODAY: {
+    grpcCode: status.INVALID_ARGUMENT,
+    grpcName: "INVALID_ARGUMENT",
+    httpStatus: 400,
+  },
   USAGE_REPORT_NOT_AVAILABLE: {
     grpcCode: status.NOT_FOUND,
     grpcName: "NOT_FOUND",
